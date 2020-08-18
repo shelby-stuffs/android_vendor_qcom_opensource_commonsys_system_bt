@@ -24,6 +24,7 @@
 #include <vector>
 
 #include <bluetooth/uuid.h>
+#include "stack/include/bt_types.h" /* for Octet16 */
 
 namespace gatt {
 constexpr uint16_t HANDLE_MIN = 0x0001;
@@ -112,6 +113,9 @@ class Database {
 
   static Database Deserialize(const std::vector<gatt::StoredAttribute>& nv_attr,
                               bool* success);
+
+  /* Return 128 bit unique identifier of this GATT database */
+  Octet16 Hash() const;
 
   friend class DatabaseBuilder;
 

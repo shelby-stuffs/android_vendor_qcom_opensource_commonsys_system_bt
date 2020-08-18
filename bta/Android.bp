@@ -169,6 +169,7 @@ cc_test {
     static_libs: [
         "libbtcore_qti",
         "libbt-bta_qti",
+        "crypto_toolbox_for_tests",
         "libbluetooth-types",
         "libosi_qti",
         "libbt-protos_qti",
