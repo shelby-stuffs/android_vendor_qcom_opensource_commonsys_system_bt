@@ -696,4 +696,8 @@ extern bool gatt_profile_sr_is_eatt_supported(uint16_t conn_id, uint16_t handle)
 
 extern void gatt_notify_eatt_congestion(tGATT_TCB* p_tcb, uint16_t cid, bool congested);
 
+/* gatt_sr_hash.cc */
+extern Octet16 gatts_calculate_database_hash(
+    std::list<tGATT_SRV_LIST_ELEM>* lst_ptr);
+
 #endif
