@@ -501,6 +501,8 @@ tGATT_TCB* gatt_allocate_tcb_by_bdaddr(const RawAddress& bda,
     p_tcb->tcb_idx = i;
     p_tcb->transport = transport;
     p_tcb->peer_bda = bda;
+    gatt_sr_init_cl_status(*p_tcb);
+
     return p_tcb;
   }
 

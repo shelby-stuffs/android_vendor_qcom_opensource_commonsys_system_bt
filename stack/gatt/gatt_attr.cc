@@ -62,6 +62,7 @@
 
 #include "gatt_api.h"
 #include "gatt_int.h"
+#include "gd/common/init_flags.h"
 #include "osi/include/osi.h"
 
 #include "l2c_api.h"
@@ -121,6 +122,15 @@ static void gatt_cl_op_cmpl_cback(uint16_t conn_id,
 static void gatt_cl_start_config_ccc(tGATT_PROFILE_CLCB* p_clcb);
 
 static void gatt_cl_check_eatt_support(tGATT_PROFILE_CLCB* p_clcb);
+
+static bool gatt_sr_is_robust_caching_enabled();
+
+static tGATT_STATUS gatt_sr_read_db_hash(uint16_t conn_id,
+                                         tGATT_VALUE* p_value);
+static tGATT_STATUS gatt_sr_read_cl_supp_feat(uint16_t conn_id,
+                                              tGATT_VALUE* p_value);
+static tGATT_STATUS gatt_sr_write_cl_supp_feat(uint16_t conn_id,
+                                               tGATT_WRITE_REQ* p_data);
 
 static tGATT_CBACK gatt_profile_cback = {gatt_connect_cback,
                                          gatt_cl_op_cmpl_cback,
@@ -538,6 +548,13 @@ static void gatt_connect_cback(UNUSED_ATTR tGATT_IF gatt_if,
   VLOG(1) << __func__ << ": from " << bda << " connected: " << connected
           << ", conn_id: " << loghex(conn_id) << "reason: " << loghex(reason);
 
+  // if the device is not trusted, remove data when the link is disconnected
+  if (!connected && !btm_sec_is_a_bonded_dev(bda)) {
+    LOG(INFO) << __func__ << ": remove untrusted client status, bda=" << bda;
+    btif_storage_remove_gatt_cl_supp_feat(bda);
+    btif_storage_remove_gatt_cl_db_hash(bda);
+  }
+
   tGATT_PROFILE_CLCB* p_clcb =
       gatt_profile_find_clcb_by_bd_addr(bda, transport);
   if (p_clcb == NULL) {
@@ -585,6 +602,7 @@ void gatt_profile_db_init(void) {
 
   Uuid sr_supp_feat_char_uuid = Uuid::From16Bit(GATT_UUID_GATT_SR_SUPP_FEATURES);
   Uuid cl_supp_feat_char_uuid = Uuid::From16Bit(GATT_UUID_GATT_CL_SUPP_FEATURES);
+  Uuid database_hash_uuid = Uuid::From16Bit(GATT_UUID_DATABASE_HASH);
 
   btgatt_db_element_t service[] = {
       {.type = BTGATT_DB_PRIMARY_SERVICE, .uuid = service_uuid},
@@ -599,7 +617,12 @@ void gatt_profile_db_init(void) {
       {.type = BTGATT_DB_CHARACTERISTIC,
        .uuid = cl_supp_feat_char_uuid,
        .properties = (GATT_CHAR_PROP_BIT_READ | GATT_CHAR_PROP_BIT_WRITE),
-       .permissions = (GATT_PERM_READ | GATT_PERM_WRITE)}};
+       .permissions = (GATT_PERM_READ | GATT_PERM_WRITE)},
+      {.uuid = database_hash_uuid,
+       .type = BTGATT_DB_CHARACTERISTIC,
+       .properties = GATT_CHAR_PROP_BIT_READ,
+       .permissions = GATT_PERM_READ,
+      }};
 
   GATTS_AddService(gatt_cb.gatt_if, service,
                    sizeof(service) / sizeof(btgatt_db_element_t));
@@ -623,7 +646,13 @@ void gatt_profile_db_init(void) {
   gatt_attr_db[1].uuid = GATT_UUID_GATT_CL_SUPP_FEATURES;
   gatt_attr_db[1].handle = service[3].attribute_handle;
 
+  gatt_cb.handle_of_database_hash = service[4].attribute_handle;
+
   VLOG(1) << __func__ << ": gatt_if=" << +gatt_cb.gatt_if;
+
+  if (gatt_sr_is_robust_caching_enabled())
+    gatt_cb.gatt_cl_supported_feat_mask |= BLE_GATT_CL_SUP_FEAT_CACHING_BITMASK;
+
 }
 
 /*******************************************************************************
@@ -1008,4 +1037,214 @@ void gatt_update_eatt_support(RawAddress& bda) {
       gatt_add_eatt_device(bda);
     }
   }
+}
+
+/*******************************************************************************
+ *
+ * Function         gatt_sr_is_robust_caching_enabled
+ *
+ * Description      Check if Robust Caching is enabled on server side.
+ *
+ * Returns          true if enabled in gd flag, otherwise false
+ *
+ ******************************************************************************/
+static bool gatt_sr_is_robust_caching_enabled() {
+  return bluetooth::common::init_flags::gatt_robust_caching_is_enabled();
+}
+
+/*******************************************************************************
+ *
+ * Function         gatt_sr_is_cl_robust_caching_supported
+ *
+ * Description      Check if Robust Caching is supported for the connection
+ *
+ * Returns          true if enabled by client side, otherwise false
+ *
+ ******************************************************************************/
+static bool gatt_sr_is_cl_robust_caching_supported(tGATT_TCB& tcb) {
+  // if robust caching is not enabled, should always return false
+  if (!gatt_sr_is_robust_caching_enabled()) return false;
+  return (tcb.cl_supp_feat & BLE_GATT_CL_SUP_FEAT_CACHING_BITMASK);
+}
+
+/*******************************************************************************
+ *
+ * Function         gatt_sr_is_cl_change_aware
+ *
+ * Description      Check if the connection is change-aware
+ *
+ * Returns          true if change aware, otherwise false
+ *
+ ******************************************************************************/
+bool gatt_sr_is_cl_change_aware(tGATT_TCB& tcb) {
+  // if robust caching is not supported, should always return true by default
+  if (!gatt_sr_is_cl_robust_caching_supported(tcb)) return true;
+  return tcb.is_robust_cache_change_aware;
+}
+
+/*******************************************************************************
+ *
+ * Function         gatt_sr_init_cl_status
+ *
+ * Description      Restore status for trusted device
+ *
+ * Returns          none
+ *
+ ******************************************************************************/
+void gatt_sr_init_cl_status(tGATT_TCB& tcb) {
+  tcb.cl_supp_feat = btif_storage_get_gatt_cl_supp_feat(tcb.peer_bda);
+  // This is used to reset bit when robust caching is disabled
+  if (!gatt_sr_is_robust_caching_enabled()) {
+    tcb.cl_supp_feat &= ~BLE_GATT_CL_SUP_FEAT_CACHING_BITMASK;
+  }
+
+  if (gatt_sr_is_cl_robust_caching_supported(tcb)) {
+    Octet16 stored_hash = btif_storage_get_gatt_cl_db_hash(tcb.peer_bda);
+    tcb.is_robust_cache_change_aware = (stored_hash == gatt_cb.database_hash);
+  } else {
+    // set default value for untrusted device
+    tcb.is_robust_cache_change_aware = true;
+  }
+
+  LOG(INFO) << __func__ << ": bda=" << tcb.peer_bda
+            << ", cl_supp_feat=" << loghex(tcb.cl_supp_feat)
+            << ", aware=" << tcb.is_robust_cache_change_aware;
+}
+
+/*******************************************************************************
+ *
+ * Function         gatt_sr_update_cl_status
+ *
+ * Description      Update change-aware status for the remote device
+ *
+ * Returns          none
+ *
+ ******************************************************************************/
+void gatt_sr_update_cl_status(tGATT_TCB& tcb, bool chg_aware) {
+  // if robust caching is not supported, do nothing
+  if (!gatt_sr_is_cl_robust_caching_supported(tcb)) return;
+
+  // only when client status is changed from change-unaware to change-aware, we
+  // can then store database hash into btif_storage
+  if (!tcb.is_robust_cache_change_aware && chg_aware) {
+    btif_storage_set_gatt_cl_db_hash(tcb.peer_bda, gatt_cb.database_hash);
+  }
+
+  // only when the status is changed, print the log
+  if (tcb.is_robust_cache_change_aware != chg_aware) {
+    LOG(INFO) << __func__ << ": bda=" << tcb.peer_bda
+              << ", chg_aware=" << chg_aware;
+  }
+
+  tcb.is_robust_cache_change_aware = chg_aware;
+}
+
+/* handle request for reading database hash */
+static tGATT_STATUS gatt_sr_read_db_hash(uint16_t conn_id,
+                                         tGATT_VALUE* p_value) {
+  LOG(INFO) << __func__ << ": conn_id=" << loghex(conn_id);
+
+  uint8_t* p = p_value->value;
+  Octet16& db_hash = gatt_cb.database_hash;
+  ARRAY_TO_STREAM(p, db_hash.data(), (uint16_t)db_hash.size());
+  p_value->len = (uint16_t)db_hash.size();
+
+  // Every time when database hash is requested, reset flag.
+  uint8_t tcb_idx = GATT_GET_TCB_IDX(conn_id);
+  gatt_sr_update_cl_status(gatt_cb.tcb[tcb_idx], /* chg_aware= */ true);
+  return GATT_SUCCESS;
+}
+
+/* handle request for reading client supported features */
+static tGATT_STATUS gatt_sr_read_cl_supp_feat(uint16_t conn_id,
+                                              tGATT_VALUE* p_value) {
+  // Get tcb info
+  uint8_t tcb_idx = GATT_GET_TCB_IDX(conn_id);
+  tGATT_TCB& tcb = gatt_cb.tcb[tcb_idx];
+
+  uint8_t* p = p_value->value;
+  UINT8_TO_STREAM(p, tcb.cl_supp_feat);
+  p_value->len = 1;
+
+  return GATT_SUCCESS;
+}
+
+/* handle request for writing client supported features */
+static tGATT_STATUS gatt_sr_write_cl_supp_feat(uint16_t conn_id,
+                                               tGATT_WRITE_REQ* p_data) {
+  std::list<uint8_t> tmp;
+  uint16_t len = p_data->len;
+  uint8_t value, *p = p_data->value;
+  // Read all octets into list
+  while (len > 0) {
+    STREAM_TO_UINT8(value, p);
+    tmp.push_back(value);
+    len--;
+  }
+  // Remove trailing zero octets
+  while (!tmp.empty()) {
+    if (tmp.back() != 0x00) break;
+    tmp.pop_back();
+  }
+
+  // Get tcb info
+  uint8_t tcb_idx = GATT_GET_TCB_IDX(conn_id);
+  tGATT_TCB& tcb = gatt_cb.tcb[tcb_idx];
+
+  std::list<uint8_t> feature_list;
+  feature_list.push_back(tcb.cl_supp_feat);
+
+  // If input length is zero, return value_not_allowed
+  if (tmp.empty()) {
+    LOG(INFO) << __func__ << ": zero length, conn_id=" << loghex(conn_id)
+              << ", bda=" << tcb.peer_bda;
+    return GATT_VALUE_NOT_ALLOWED;
+  }
+  // if original length is longer than new one, it must be the bit reset case.
+  if (feature_list.size() > tmp.size()) {
+    LOG(INFO) << __func__ << ": shorter length, conn_id=" << loghex(conn_id)
+              << ", bda=" << tcb.peer_bda;
+    return GATT_VALUE_NOT_ALLOWED;
+  }
+  // new length is longer or equals to the original, need to check bits
+  // one by one. Here we use bit-wise operation.
+  // 1. Use XOR to locate the change bit, val_xor is the change bit mask
+  // 2. Use AND for val_xor and *it_new to get val_and
+  // 3. If val_and != val_xor, it means the change is from 1 to 0
+  auto it_old = feature_list.cbegin();
+  auto it_new = tmp.cbegin();
+  for (; it_old != feature_list.cend(); it_old++, it_new++) {
+    uint8_t val_xor = *it_old ^ *it_new;
+    uint8_t val_and = val_xor & *it_new;
+    if (val_and != val_xor) {
+      LOG(INFO) << __func__
+                << ": bit cannot be reset, conn_id=" << loghex(conn_id)
+                << ", bda=" << tcb.peer_bda;
+      return GATT_VALUE_NOT_ALLOWED;
+    }
+  }
+
+  // get current robust caching status before setting new one
+  bool curr_caching_state = gatt_sr_is_cl_robust_caching_supported(tcb);
+
+  tcb.cl_supp_feat = tmp.front();
+  if (!gatt_sr_is_robust_caching_enabled()) {
+    // remove robust caching bit
+    tcb.cl_supp_feat &= ~BLE_GATT_CL_SUP_FEAT_CACHING_BITMASK;
+    LOG(INFO) << __func__
+              << ": reset robust caching bit, conn_id=" << loghex(conn_id)
+              << ", bda=" << tcb.peer_bda;
+  }
+  // TODO(hylo): save data as byte array
+  btif_storage_set_gatt_cl_supp_feat(tcb.peer_bda, tcb.cl_supp_feat);
+
+  // get new robust caching status after setting new one
+  bool new_caching_state = gatt_sr_is_cl_robust_caching_supported(tcb);
+  // only when the first time robust caching request, print the log
+  if (!curr_caching_state && new_caching_state) {
+    LOG(INFO) << __func__ << ": robust caching enabled by client"
+              << ", conn_id=" << loghex(conn_id);
+  }
+
+  return GATT_SUCCESS;
 }

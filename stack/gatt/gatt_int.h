@@ -304,6 +304,12 @@ typedef struct {
   std::queue<tGATT_CMD_Q> cl_cmd_q;
   alarm_t* ind_ack_timer; /* local app confirm to indication timer */
 
+  // TODO(hylo): support byte array data
+  /* Client supported feature*/
+  uint8_t cl_supp_feat;
+  /* Use for server. if false, should handle database out of sync. */
+  bool is_robust_cache_change_aware;
+
   bool in_use;
   uint8_t tcb_idx;
 
@@ -486,6 +492,9 @@ typedef struct {
   uint16_t
       handle_of_h_r; /* Handle of the handles reused characteristic value */
 
+  uint16_t handle_of_database_hash;
+  Octet16 database_hash;
+
   tGATT_APPL_INFO cb_info;
 
   tGATT_HDL_CFG hdl_cfg;
@@ -530,6 +539,10 @@ extern void gatt_establish_eatt_connect(tGATT_TCB* p_tcb, uint8_t num_chnls);
 
 /* from gatt_attr.cc */
 extern uint16_t gatt_profile_find_conn_id_by_bd_addr(const RawAddress& bda);
+
+extern bool gatt_sr_is_cl_change_aware(tGATT_TCB& tcb);
+extern void gatt_sr_init_cl_status(tGATT_TCB& tcb);
+extern void gatt_sr_update_cl_status(tGATT_TCB& tcb, bool chg_unaware);
 
 /* Functions provided by att_protocol.cc */
 extern tGATT_STATUS attp_send_cl_msg(tGATT_TCB& tcb, tGATT_CLCB* p_clcb, uint16_t lcid,
