@@ -14,6 +14,40 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted (subject to the limitations in the
+ *  disclaimer below) provided that the following conditions are met:
+ *
+ *  Redistributions of source code must retain the above copyright
+ *  notice, this list of conditions and the following disclaimer.
+ *
+ *  Redistributions in binary form must reproduce the above
+ *  copyright notice, this list of conditions and the following
+ *  disclaimer in the documentation and/or other materials provided
+ *  with the distribution.
+ *
+ *  Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *  contributors may be used to endorse or promote products derived
+ *  from this software without specific prior written permission.
+ *
+ *  NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ *  GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ *  HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ *  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ *  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ *  IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ *  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ *  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ *  GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ *  IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ *  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ *  IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+ *
  ******************************************************************************/
 
 #define LOG_TAG "bt_controller"
@@ -45,7 +79,7 @@
 #define BTSNOOP_SOCLOG_PROPERTY "persist.vendor.service.bdroid.soclog"
 
 const bt_event_mask_t BLE_EVENT_MASK = {
-    {0x00, 0x00, 0x00, 0x02, 0x4F, 0x0B, 0xFE, 0x7f}};
+    {0x00, 0x00, 0x00, 0x06, 0x4F, 0x0B, 0xFE, 0x7f}};
 
 const bt_event_mask_t CLASSIC_EVENT_MASK = {HCI_DUMO_EVENT_MASK_EXT};
 
@@ -61,6 +95,7 @@ const uint8_t SCO_HOST_BUFFER_SIZE = 0xff;
 #define MAX_SCRAMBLING_FREQS_SIZE 64
 #define ISO_CHANNEL_HOST_SUPPORT_BIT 32
 #define MIN_ENCRYPTION_KEY_SIZE 7
+#define CONN_SUBRATING_HOST_SUPPORT_BIT 38
 #define UNUSED(x) (void)(x)
 
 #define QHS_TRANSPORT_LE_ISO 2
@@ -497,6 +532,14 @@ static future_t* start_up(void) {
           packet_factory->make_ble_set_host_feature_cmd(ISO_CHANNEL_HOST_SUPPORT_BIT, 1));
       packet_parser->parse_ble_set_host_feature_cmd(response);
       HCI_LE_SET_CIS_HOST_SUPPORT(features_ble.as_array);
+    }
+
+    // Set Host support for LE connection subrating
+    if (HCI_LE_CONN_SUBRATING_SUPPORT(features_ble.as_array)) {
+      response = AWAIT_COMMAND(
+          packet_factory->make_ble_set_host_feature_cmd(CONN_SUBRATING_HOST_SUPPORT_BIT, 1));
+      packet_parser->parse_ble_set_host_feature_cmd(response);
+      HCI_LE_SET_CONN_SUBRATING_HOST_SUPPORT(features_ble.as_array);
     }
 
     if (HCI_LE_ENHANCED_PRIVACY_SUPPORTED(features_ble.as_array)) {
@@ -1106,6 +1149,21 @@ static bool supports_twsp_remote_state() {
   return twsp_state_supported;
 }
 
+/* to check if support for conn subrating is set in LL Feature Mask*/
+static bool is_conn_subrating_supported(void) {
+  CHECK(readable);
+  CHECK(ble_supported);
+  return HCI_LE_CONN_SUBRATING_SUPPORT(features_ble.as_array);
+}
+
+/* to check if host support for conn subrating is set in LL Feature Mask*/
+static bool is_conn_subrating_host_supported(void) {
+  CHECK(readable);
+  CHECK(ble_supported);
+  return HCI_LE_CONN_SUBRATING_HOST_SUPPORT(features_ble.as_array);
+}
+
+
 /* save transport information of standard and vendor specific codecs */
 void update_soc_codec_transport() {
   int number_of_codecs = (number_of_local_supported_codecs > number_of_vs_supported_codecs ?
@@ -1264,6 +1322,8 @@ static const controller_t interface = {
     is_qbce_QLE_HCI_supported,
     is_qbce_QCM_HCI_supported,
     get_qll_features,
+    is_conn_subrating_supported,
+    is_conn_subrating_host_supported,
 };
 
 const controller_t* controller_get_interface() {

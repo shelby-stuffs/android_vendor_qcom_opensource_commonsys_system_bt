@@ -14,6 +14,40 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *
+ *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted (subject to the limitations in the
+ *  disclaimer below) provided that the following conditions are met:
+ *
+ *  Redistributions of source code must retain the above copyright
+ *  notice, this list of conditions and the following disclaimer.
+ *
+ *  Redistributions in binary form must reproduce the above
+ *  copyright notice, this list of conditions and the following
+ *  disclaimer in the documentation and/or other materials provided
+ *  with the distribution.
+ *
+ *  Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *  contributors may be used to endorse or promote products derived
+ *  from this software without specific prior written permission.
+ *
+ *  NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ *  GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ *  HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ *  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ *  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ *  IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ *  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ *  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ *  GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ *  IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ *  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ *  IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+ *
  ******************************************************************************/
 
 #ifndef HCIDEFS_H
@@ -430,6 +464,9 @@
 #define HCI_BLE_CREATE_BIG (0x0068 | HCI_GRP_BLE_CMDS)
 #define HCI_BLE_TERMINATE_BIG (0x006A | HCI_GRP_BLE_CMDS)
 
+#define HCI_BLE_SET_DEFAULT_SUBRATE (0x007D | HCI_GRP_BLE_CMDS)
+#define HCI_BLE_SUBRATE_REQ (0x007E | HCI_GRP_BLE_CMDS)
+
 /* LE Get Vendor Capabilities Command OCF */
 #define HCI_BLE_VENDOR_CAP_OCF (0x0153 | HCI_GRP_VENDOR_SPECIFIC)
 
@@ -697,6 +734,8 @@ constexpr uint8_t HCI_LE_STATES_INIT_MASTER_SLAVE_BIT = 41;
 #define HCI_LE_REQUEST_PEER_SCA_COMPLETE 0x1F
 #define HCI_LE_PATH_LOSS_THRESHOLD 0x20
 #define HCI_LE_TRANSMIT_POWER_REPORTING 0x21
+
+#define HCI_LE_SUBRATE_CHANGE_EVT 0x23
 
 #define HCI_CIS_CONNECTION_TIMEOUT (30 * 1000)
 
@@ -1534,6 +1573,9 @@ typedef struct {
 #define HCI_LE_PATHLOSS_MONITORING_SUPPORT(x) ((x)[4] & 0x08)
 #define HCI_LE_PERIODIC_ADVERTISING_ADI_SUPPORTED(x) ((x)[4] & 0x10)
 
+#define HCI_LE_CONN_SUBRATING_SUPPORT(x) ((x)[4] & 0x20)
+#define HCI_LE_CONN_SUBRATING_HOST_SUPPORT(x) ((x)[4] & 0x40)
+
 /* Add_on features encoding - page 0 (the only page for now)*/
 #define HCI_WIPOWER_FASTBOOT_ENABLE(x) ((x)[0] & 0x01)
 #define HCI_SPLIT_A2DP_SCRAMBLING_DATA_REQUIRED(x) ((x)[0] & 0x02)
@@ -1834,6 +1876,12 @@ typedef struct {
 #define HCI_LE_SET_CIS_HOST_SUPPORT(x)   \
   {                                       \
     (x)[4] = (x)[4] | 0x01;               \
+  }
+
+// Set Host Support for Connection subrating bit in features_ble
+#define HCI_LE_SET_CONN_SUBRATING_HOST_SUPPORT(x)   \
+  {                                       \
+    (x)[4] = (x)[4] | 0x40;               \
   }
 
 #endif
