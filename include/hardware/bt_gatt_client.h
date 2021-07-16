@@ -19,7 +19,11 @@
 #define ANDROID_INCLUDE_BT_GATT_CLIENT_H
 
 #include <stdint.h>
+<<<<<<< HEAD
 #include <vector>
+=======
+#include "bt_common_types.h"
+>>>>>>> 2ebd15d... floss: Change vector to pointer in gatt btif
 #include "bt_gatt_types.h"
 #include "bt_common_types.h"
 
@@ -250,14 +254,14 @@ typedef struct {
   /** Write a remote characteristic */
   bt_status_t (*write_characteristic)(int conn_id, uint16_t handle,
                                       int write_type, int auth_req,
-                                      std::vector<uint8_t> value);
+                                      const uint8_t* value, size_t length);
 
   /** Read the descriptor for a given characteristic */
   bt_status_t (*read_descriptor)(int conn_id, uint16_t handle, int auth_req);
 
   /** Write a remote descriptor for a given characteristic */
   bt_status_t (*write_descriptor)(int conn_id, uint16_t handle, int auth_req,
-                                  std::vector<uint8_t> value);
+                                  const uint8_t* value, size_t length);
 
   /** Execute a prepared write operation */
   bt_status_t (*execute_write)(int conn_id, int execute);
