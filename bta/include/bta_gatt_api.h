@@ -904,11 +904,12 @@ extern void BTA_GATTS_AppDeregister(tGATT_IF server_if);
  *
  ******************************************************************************/
 typedef base::Callback<void(uint8_t status, int server_if,
-                            std::vector<btgatt_db_element_t> service)>
+                            const btgatt_db_element_t* service, size_t service_count)>
     BTA_GATTS_AddServiceCb;
 
 extern void BTA_GATTS_AddService(tGATT_IF server_if,
-                                 std::vector<btgatt_db_element_t> service,
+                                 const btgatt_db_element_t* service,
+                                 size_t service_count,
                                  BTA_GATTS_AddServiceCb cb);
 
 /*******************************************************************************

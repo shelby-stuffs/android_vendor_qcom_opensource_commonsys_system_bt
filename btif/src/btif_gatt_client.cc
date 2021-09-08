@@ -487,9 +487,10 @@ void write_char_cb(uint16_t conn_id, tGATT_STATUS status, uint16_t handle,
 }
 
 bt_status_t btif_gattc_write_char(int conn_id, uint16_t handle, int write_type,
-                                  int auth_req, vector<uint8_t> value) {
+                                  int auth_req, const uint8_t* p_value, size_t value_count) {
   CHECK_BTGATT_INIT();
 
+  std::vector<uint8_t> value(p_value, p_value + value_count);
   if (value.size() > BTGATT_MAX_ATTR_LEN) value.resize(BTGATT_MAX_ATTR_LEN);
 
   return do_in_jni_thread(Bind(&BTA_GATTC_WriteCharValue, conn_id, handle,
@@ -503,9 +504,10 @@ void write_descr_cb(uint16_t conn_id, tGATT_STATUS status, uint16_t handle,
 }
 
 bt_status_t btif_gattc_write_char_descr(int conn_id, uint16_t handle,
-                                        int auth_req, vector<uint8_t> value) {
+                                        int auth_req, const uint8_t* p_value, size_t value_count) {
   CHECK_BTGATT_INIT();
 
+  std::vector<uint8_t> value(p_value, p_value + value_count);
   if (value.size() > BTGATT_MAX_ATTR_LEN) value.resize(BTGATT_MAX_ATTR_LEN);
 
   return do_in_jni_thread(Bind(&BTA_GATTC_WriteCharDescr, conn_id, handle,
