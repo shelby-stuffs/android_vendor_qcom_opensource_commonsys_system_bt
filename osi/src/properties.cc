@@ -78,6 +78,17 @@ if(property_callouts)
 #endif  // defined(OS_GENERIC)
 }
 
+bool osi_property_get_bool(const char* key, bool default_value) {
+#if defined(OS_GENERIC)
+//if(property_callouts)
+//    return property_callouts->bt_get_property_bool(key, default_value);
+
+  return default_value;
+#else
+  return property_get_bool(key, default_value);
+#endif  // defined(OS_GENERIC)
+}
+
 void set_prop_callouts(bt_property_callout_t* callouts) {
   property_callouts = callouts;
 }
