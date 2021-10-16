@@ -884,6 +884,13 @@ static void btu_hcif_encryption_change_evt(uint8_t* p) {
     btsnd_hcic_read_encryption_key_size(
         handle,
         base::Bind(&read_encryption_key_size_complete_after_encryption_change));
+#if 0
+    // Skip encryption key size check when using set_min_encryption_key_size
+    if (!controller_get_interface()->supports_set_min_encryption_key_size()) {
+      btsnd_hcic_read_encryption_key_size(handle, base::Bind(
+          &read_encryption_key_size_complete_after_encryption_change));
+    }
+#endif
   }
 }
 
