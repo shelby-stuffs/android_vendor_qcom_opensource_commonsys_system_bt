@@ -269,7 +269,7 @@ int get_remote_service_record(const RawAddress& remote_addr,
   return btif_get_remote_service_record(remote_addr, uuid);
 }
 
-int get_remote_services(RawAddress* remote_addr) {
+int get_remote_services(RawAddress* remote_addr, int /*transport*/) {
   /* sanity check */
   if (interface_ready() == false) return BT_STATUS_NOT_READY;
 

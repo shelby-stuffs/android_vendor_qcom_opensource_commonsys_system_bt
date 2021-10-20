@@ -706,7 +706,7 @@ void bond_state_changed(bt_status_t status, const RawAddress& bd_addr,
     // Cross key pairing so send callback for static address
     if (!pairing_cb.static_bdaddr.IsEmpty()) {
       auto tmp = bd_addr;
-      HAL_CBACK(bt_hal_cbacks, bond_state_changed_cb, status, &tmp, state);
+      HAL_CBACK(bt_hal_cbacks, bond_state_changed_cb, status, &tmp, state, 0);
     }
     return;
   }
@@ -719,7 +719,7 @@ void bond_state_changed(bt_status_t status, const RawAddress& bd_addr,
                    state, pairing_cb.state, pairing_cb.sdp_attempts);
 
   auto tmp = bd_addr;
-  HAL_CBACK(bt_hal_cbacks, bond_state_changed_cb, status, &tmp, state);
+  HAL_CBACK(bt_hal_cbacks, bond_state_changed_cb, status, &tmp, state, 0);
 
   if (state == BT_BOND_STATE_BONDING ||
       (state == BT_BOND_STATE_BONDED && pairing_cb.sdp_attempts > 0)) {
@@ -882,7 +882,7 @@ static void btif_dm_cb_create_bond(const RawAddress& bd_addr,
     BTIF_TRACE_DEBUG("%s: btm_cb.pairing_state = %d, one pairing in progress ",
                       __func__, btm_cb.pairing_state);
     auto tmp = bd_addr;
-    HAL_CBACK(bt_hal_cbacks, bond_state_changed_cb, BT_STATUS_FAIL, &tmp, BT_BOND_STATE_NONE);
+    HAL_CBACK(bt_hal_cbacks, bond_state_changed_cb, BT_STATUS_FAIL, &tmp, BT_BOND_STATE_NONE, 0);
     return;
   }
 
@@ -2193,7 +2193,7 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
       btif_update_remote_version_property(&bd_addr);
 
       HAL_CBACK(bt_hal_cbacks, acl_state_changed_cb, BT_STATUS_SUCCESS,
-                &bd_addr, BT_ACL_STATE_CONNECTED, HCI_SUCCESS);
+                &bd_addr, BT_ACL_STATE_CONNECTED, 0, HCI_SUCCESS);
       break;
 
     case BTA_DM_LINK_DOWN_EVT:
@@ -2234,7 +2234,7 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
       BTIF_TRACE_DEBUG(
           "BTA_DM_LINK_DOWN_EVT. Sending BT_ACL_STATE_DISCONNECTED");
       HAL_CBACK(bt_hal_cbacks, acl_state_changed_cb, BT_STATUS_SUCCESS,
-                &bd_addr, BT_ACL_STATE_DISCONNECTED,
+                &bd_addr, BT_ACL_STATE_DISCONNECTED, 0,
                 static_cast<bt_hci_error_code_t>(btm_get_acl_disc_reason_code()));
       break;
 
