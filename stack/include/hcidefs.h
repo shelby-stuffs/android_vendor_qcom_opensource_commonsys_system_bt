@@ -1528,6 +1528,7 @@ typedef struct {
 #define HCI_LE_CIS_SLAVE_SUPPORT(x) ((x)[3] & 0x20)
 #define HCI_LE_POW_CTR_REQ_SUPPORT(x) ((x)[4] & 0x02)
 #define HCI_LE_PATHLOSS_MONITORING_SUPPORT(x) ((x)[4] & 0x08)
+#define HCI_LE_PERIODIC_ADVERTISING_ADI_SUPPORTED(x) ((x)[4] & 0x10)
 
 /* Add_on features encoding - page 0 (the only page for now)*/
 #define HCI_WIPOWER_FASTBOOT_ENABLE(x) ((x)[0] & 0x01)
