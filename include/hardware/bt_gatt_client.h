@@ -19,13 +19,9 @@
 #define ANDROID_INCLUDE_BT_GATT_CLIENT_H
 
 #include <stdint.h>
-<<<<<<< HEAD
-#include <vector>
-=======
+
 #include "bt_common_types.h"
->>>>>>> 2ebd15d... floss: Change vector to pointer in gatt btif
 #include "bt_gatt_types.h"
-#include "bt_common_types.h"
 
 #include <bluetooth/uuid.h>
 
