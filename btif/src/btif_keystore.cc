@@ -39,8 +39,7 @@ class BluetoothKeystoreInterfaceImpl;
 std::unique_ptr<BluetoothKeystoreInterface> bluetoothKeystoreInstance;
 
 class BluetoothKeystoreInterfaceImpl
-    : public bluetooth::bluetooth_keystore::BluetoothKeystoreInterface,
-      public bluetooth::bluetooth_keystore::BluetoothKeystoreCallbacks {
+    : public bluetooth::bluetooth_keystore::BluetoothKeystoreInterface {
   ~BluetoothKeystoreInterfaceImpl() override = default;
 
   void init(BluetoothKeystoreCallbacks* callbacks) override {
@@ -50,14 +49,16 @@ class BluetoothKeystoreInterfaceImpl
     do_in_jni_thread(
         FROM_HERE, base::Bind([]() { btif_storage_get_num_bonded_devices(); }));
   }
+  void ConvertEncryptOrDecryptKeyIfNeeded() {
+  }
 
-  void set_encrypt_key_or_remove_key(std::string prefix,
+  bool set_encrypt_key_or_remove_key(std::string prefix,
                                      std::string decryptedString) override {
     VLOG(2) << __func__ << " prefix: " << prefix;
 
     if (!callbacks) {
       LOG(WARNING) << __func__ << " callback isn't ready. prefix: " << prefix;
-      return;
+      return false;
     }
 
     // Save the value into a map.
@@ -67,6 +68,8 @@ class BluetoothKeystoreInterfaceImpl
         base::Bind(&bluetooth::bluetooth_keystore::BluetoothKeystoreCallbacks::
                        set_encrypt_key_or_remove_key,
                    base::Unretained(callbacks), prefix, decryptedString));
+
+    return true;
   }
 
   std::string get_key(std::string prefix) override {
