@@ -361,13 +361,15 @@ static bt_status_t btif_gatts_close(int server_if, const RawAddress& bd_addr,
 }
 
 static void on_service_added_cb(uint8_t status, int server_if,
-                                vector<btgatt_db_element_t> service) {
+                                const btgatt_db_element_t *service,
+                                size_t service_count) {
   HAL_CBACK(bt_gatt_callbacks, server->service_added_cb, status, server_if,
-            service.data(), service.size());
+            service, service_count);
 }
 
 static void add_service_impl(int server_if,
-                             vector<btgatt_db_element_t> service) {
+                             const btgatt_db_element_t *service,
+                             size_t service_count) {
   // TODO(jpawlowski): btif should be a pass through layer, and no checks should
   // be made here. This exception is added only until GATT server code is
   // refactored, and one can distinguish stack-internal aps from external apps
@@ -375,12 +377,12 @@ static void add_service_impl(int server_if,
       service[0].uuid == Uuid::From16Bit(UUID_SERVCLASS_GAP_SERVER)) {
     LOG_ERROR(LOG_TAG, "%s: Attept to register restricted service", __func__);
     HAL_CBACK(bt_gatt_callbacks, server->service_added_cb, BT_STATUS_FAIL,
-              server_if, service.data(), service.size());
+              server_if, service, service_count);
     return;
   }
 
   BTA_GATTS_AddService(
-      server_if, service,
+      server_if, service, service_count,
       jni_thread_wrapper(FROM_HERE, base::Bind(&on_service_added_cb)));
 }
 
@@ -390,7 +392,7 @@ static bt_status_t btif_gatts_add_service(int server_if,
   CHECK_BTGATT_INIT();
   return do_in_jni_thread(FROM_HERE,
                           Bind(&add_service_impl, server_if,
-                               std::vector(service, service + service_count)));
+                               service, service_count));
 }
 
 static bt_status_t btif_gatts_stop_service(int server_if, int service_handle) {

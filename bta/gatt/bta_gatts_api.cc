@@ -137,9 +137,8 @@ void bta_gatts_add_service_impl(tGATT_IF server_if,
   // FIXME:
   btgatt_db_element_t *service_copy = new btgatt_db_element_t[service_count];
   for (size_t i = 0; i < service_count; i++)
-    service_copy[i] = service[i];
+   service_copy[i] = service[i];
   uint16_t status = GATTS_AddService(server_if, service_copy, service_count);
-
   if (status != GATT_SERVICE_STARTED) {
     memset(&bta_gatts_cb.srvc_cb[srvc_idx], 0, sizeof(tBTA_GATTS_SRVC_CB));
     LOG(ERROR) << __func__ << ": service creation failed.";
