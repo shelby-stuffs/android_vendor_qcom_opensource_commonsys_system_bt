@@ -139,22 +139,23 @@ void bta_gatts_add_service_impl(tGATT_IF server_if,
   for (size_t i = 0; i < service_count; i++)
     service_copy[i] = service[i];
   uint16_t status = GATTS_AddService(server_if, service_copy, service_count);
-  delete[] service_copy;
 
   if (status != GATT_SERVICE_STARTED) {
     memset(&bta_gatts_cb.srvc_cb[srvc_idx], 0, sizeof(tBTA_GATTS_SRVC_CB));
     LOG(ERROR) << __func__ << ": service creation failed.";
     cb.Run(GATT_ERROR, server_if, service, service_count);
+    delete[] service_copy;
     return;
   }
 
-  bta_gatts_cb.srvc_cb[srvc_idx].service_uuid = service[0].uuid;
+  bta_gatts_cb.srvc_cb[srvc_idx].service_uuid = service_copy[0].uuid;
 
   // service_id is equal to service start handle
-  bta_gatts_cb.srvc_cb[srvc_idx].service_id = service[0].attribute_handle;
+  bta_gatts_cb.srvc_cb[srvc_idx].service_id = service_copy[0].attribute_handle;
   bta_gatts_cb.srvc_cb[srvc_idx].idx = srvc_idx;
 
-  cb.Run(GATT_SUCCESS, server_if, service, service_count);
+  cb.Run(GATT_SUCCESS, server_if, (const btgatt_db_element_t *)service_copy, service_count);
+  delete[] service_copy;
   return;
 }
 
