@@ -327,6 +327,12 @@ static void parse_ble_read_number_of_supported_advertising_sets(
   buffer_allocator->free(response);
 }
 
+static void parse_set_min_encryption_key_size_response(BT_HDR* response) {
+  assert(read_command_complete_header(
+      response, HCI_SET_MIN_ENCRYPTION_KEY_SIZE, 0) != NULL);
+}
+
+
 // Internal functions
 
 static uint8_t* read_command_complete_header(BT_HDR* response,
@@ -390,6 +396,7 @@ static const hci_packet_parser_t interface = {
     parse_read_add_on_features_supported_response,
     parse_read_local_simple_paring_options_response,
     parse_ble_set_host_feature_cmd,
+    parse_set_min_encryption_key_size_response,
 };
 
 const hci_packet_parser_t* hci_packet_parser_get_interface() {
