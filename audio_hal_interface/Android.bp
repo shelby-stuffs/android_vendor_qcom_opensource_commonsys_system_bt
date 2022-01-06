@@ -35,7 +35,7 @@ cc_library_static {
         "vendor/qcom/opensource/commonsys/bluetooth_ext/vhal/include/",
         "vendor/qcom/opensource/commonsys/system/bt/btif/include",
         "vendor/qcom/opensource/commonsys/system/bt/stack/include",
-        "system/bt/audio_hearing_aid_hw/include",
+        "packages/modules/Bluetooth/system/audio_hearing_aid_hw/include",
         "vendor/qcom/opensource/commonsys/bluetooth_ext/system_bt_ext/btif/include",
         "vendor/qcom/opensource/commonsys/system/bt/btcore/include",
         "vendor/qcom/opensource/commonsys/system/bt/hci/include",
