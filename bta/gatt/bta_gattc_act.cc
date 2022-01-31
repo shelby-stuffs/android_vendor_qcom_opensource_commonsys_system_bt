@@ -1037,6 +1037,7 @@ void bta_gattc_write_cmpl(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_OP_CMPL* p_data) {
 
   if (cb) {
     cb(p_clcb->bta_conn_id, p_data->status, p_data->p_cmpl->att_value.handle,
+       p_data->p_cmpl->att_value.len, p_data->p_cmpl->att_value.value,
        my_cb_data);
   }
 }

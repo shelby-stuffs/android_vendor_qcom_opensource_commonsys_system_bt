@@ -575,7 +575,8 @@ typedef void (*GATT_READ_OP_CB)(uint16_t conn_id, tGATT_STATUS status,
                                 uint16_t handle, uint16_t len, uint8_t* value,
                                 void* data);
 typedef void (*GATT_WRITE_OP_CB)(uint16_t conn_id, tGATT_STATUS status,
-                                 uint16_t handle, void* data);
+                                 uint16_t handle, uint16_t len,
+                                 const uint8_t* value, void* data);
 typedef void (*GATT_READ_MULTI_OP_CB)(uint16_t conn_id, tGATT_STATUS status,
                                       bool is_variable_len, uint16_t len, uint8_t* value);
 typedef void (*GATT_CONFIGURE_MTU_OP_CB)(uint16_t conn_id, tGATT_STATUS status,
