@@ -519,6 +519,10 @@ static int set_dynamic_audio_buffer_size(int codec, int size) {
   return btif_set_dynamic_audio_buffer_size(codec, size);
 }
 
+static bool allow_low_latency_audio(bool allowed, const RawAddress& address) {
+  return false;
+}
+
 EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     sizeof(bluetoothInterface),
     init,
@@ -558,6 +562,7 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     get_metric_id,
     set_dynamic_audio_buffer_size,
     generate_local_oob_data,
+    allow_low_latency_audio,
 };
 
 void invoke_oob_data_request_cb(tBT_TRANSPORT t, bool valid, Octet16 c,
