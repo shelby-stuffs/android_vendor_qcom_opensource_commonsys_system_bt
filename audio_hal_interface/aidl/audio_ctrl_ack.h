@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,68 +49,41 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 
 #pragma once
 
-#include "audio_a2dp_hw/include/audio_a2dp_hw.h"
-#include <vendor/qti/hardware/bluetooth_audio/2.0/types.h>
-#include <vendor/qti/hardware/bluetooth_audio/2.1/types.h>
-#include "osi/include/thread.h"
-#include "bta_av_api.h"
-#include "internal_include/bt_target.h"
-
-#include "btif_ahim.h"
-
-using vendor::qti::hardware::bluetooth_audio::V2_0::SessionType;
-using vendor::qti::hardware::bluetooth_audio::V2_0::SessionParamType;
-
 namespace bluetooth {
 namespace audio {
-namespace a2dp {
+namespace aidl {
 
-bool is_hal_2_0_supported();
+using ::aidl::android::hardware::bluetooth::audio::BluetoothAudioStatus;
 
-// Check if new bluetooth_audio is enabled
-bool is_hal_2_0_enabled();
-
-bool is_qc_hal_enabled();
-enum class BluetoothAudioHalVersion : uint8_t {
-  VERSION_2_0 = 0,
-  VERSION_2_1,
-  VERSION_UNAVAILABLE,
+enum class BluetoothAudioCtrlAck : uint8_t {
+  SUCCESS_FINISHED = 0,
+  PENDING,
+  FAILURE_UNSUPPORTED,
+  FAILURE_BUSY,
+  FAILURE_DISCONNECTING,
+  FAILURE
 };
 
-// Initialize BluetoothAudio HAL: openProvider
-#if AHIM_ENABLED
-bool init( thread_t* message_loop, uint8_t profile);
-// Set up the codec into BluetoothAudio HAL
-bool setup_codec(uint8_t profile);
-#else
-bool init( thread_t* message_loop);
-// Set up the codec into BluetoothAudio HAL
-bool setup_codec();
-#endif
+std::ostream& operator<<(std::ostream& os, const BluetoothAudioCtrlAck& ack);
 
-// Clean up BluetoothAudio HAL
-void cleanup();
+inline BluetoothAudioStatus BluetoothAudioCtrlAckToHalStatus(
+    const BluetoothAudioCtrlAck& ack) {
+  switch (ack) {
+    case BluetoothAudioCtrlAck::SUCCESS_FINISHED:
+      return BluetoothAudioStatus::SUCCESS;
+    case BluetoothAudioCtrlAck::FAILURE_UNSUPPORTED:
+      return BluetoothAudioStatus::UNSUPPORTED_CODEC_CONFIGURATION;
+    case BluetoothAudioCtrlAck::PENDING:
+      return BluetoothAudioStatus::FAILURE;
+    case BluetoothAudioCtrlAck::FAILURE_BUSY:
+      return BluetoothAudioStatus::FAILURE;
+    case BluetoothAudioCtrlAck::FAILURE_DISCONNECTING:
+      return BluetoothAudioStatus::FAILURE;
+    default:
+      return BluetoothAudioStatus::FAILURE;
+  }
+}
 
-// Send command to the BluetoothAudio HAL: StartSession, EndSession,
-// StreamStarted, StreamSuspended
-void start_session();
-void end_session();
-tA2DP_CTRL_CMD get_pending_command();
-bool is_restart_session_needed();
-void reset_pending_command();
-void update_pending_command(tA2DP_CTRL_CMD cmd);
-void ack_stream_started(const tA2DP_CTRL_ACK& status);
-void ack_stream_suspended(const tA2DP_CTRL_ACK& status);
-
-// Read from the FMQ of BluetoothAudio HAL
-size_t read(uint8_t* p_buf, uint32_t len);
-
-// Update A2DP delay report to BluetoothAudio HAL
-void set_remote_delay(uint16_t delay_report);
-bool is_streaming();
-SessionType get_session_type();
-void update_session_params(SessionParamType param_type);
-
-}  // namespace a2dp
+}  // namespace aidl
 }  // namespace audio
 }  // namespace bluetooth

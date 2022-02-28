@@ -47,6 +47,39 @@
  *  limitations under the License.
  *
  ******************************************************************************/
+/*
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+
+    * Redistribution and use in source and binary forms, with or without
+      modification, are permitted (subject to the limitations in the
+      disclaimer below) provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+
+    * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+*/
 
 #define LOG_TAG "btif_av"
 
@@ -84,6 +117,7 @@
 #include "device/include/device_iot_config.h"
 #include "bt_types.h"
 #include "btm_int.h"
+#include "btif_ahim.h"
 
 #ifdef ADV_AUDIO_FEATURE
 #include "btif_bap_broadcast.h"
@@ -2281,7 +2315,8 @@ static bool btif_av_state_opened_handler(btif_sm_event_t event, void* p_data,
       if (!btif_av_cb[index].reconfig_event) {
         btif_av_cb[index].reconfig_pending = false;
       }
-      bluetooth::audio::a2dp::update_session_params(SessionParamType::MTU);
+       btif_ahim_update_session_params(SessionParamType::MTU);
+      //bluetooth::audio::a2dp::update_session_params(SessionParamType::MTU);
     } break;
 
     case BTIF_AV_CONNECT_REQ_EVT: {
@@ -4402,6 +4437,7 @@ static bt_status_t init_src(
   tws_defaultmono_supported = (strcmp(value, "mono") == 0);
   BTIF_TRACE_DEBUG("default mono channel mode = %d",tws_defaultmono_supported);
   offload_enabled_codecs_config_ = offload_enabled_codecs;
+  btif_ahim_update_codec_offloading_capabilities(offload_enabled_codecs_config_);
   codec_priorities_ = codec_priorities;
 #if (TWS_STATE_ENABLED == TRUE)
   //osi_property_get("persist.vendor.btstack.twsplus.state", value, "false");

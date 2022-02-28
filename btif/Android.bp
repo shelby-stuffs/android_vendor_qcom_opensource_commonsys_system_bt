@@ -133,6 +133,10 @@ cc_library_static {
         "com.qualcomm.qti.bluetooth_audio@1.0",
         "vendor.qti.hardware.bluetooth_audio@2.0",
         "vendor.qti.hardware.bluetooth_audio@2.1",
+        "android.hardware.bluetooth.audio@2.0",
+        "android.hardware.bluetooth.audio@2.1",
+        "android.hardware.bluetooth.audio-V1-ndk",
+        "android.hardware.audio.common-V1-ndk",
         "libhidlbase",
         "libutils",
 //        "libdl",
@@ -152,57 +156,4 @@ cc_library_static {
         "-DBUILDCFG",
     ],
 
-}
-
-// btif unit tests for target
-// ========================================================
-cc_test {
-    name: "net_test_btif_qti",
-    defaults: ["fluoride_defaults_qti"],
-    include_dirs: btifCommonIncludes,
-    srcs: [
-        "test/btif_storage_test.cc",
-    ],
-    header_libs: ["libbluetooth_headers"],
-    shared_libs: [
-        "liblog",
-        "libcutils",
-        "libutils",
-        "libcrypto",
-    ],
-    static_libs: [
-        "libbtcore_qti",
-        "libbtif_qti",
-        "libbt-stack_qti",
-        "libbluetooth-types",
-        "libosi_qti",
-        "libbt-common-qti",
-    ],
-    cflags: ["-DBUILDCFG"],
-    sanitize: {
-        integer_overflow: true,
-    },
-}
-
-// btif profile queue unit tests for target
-// ========================================================
-cc_test {
-    name: "net_test_btif_profile_queue_qti",
-    defaults: ["fluoride_defaults_qti"],
-    include_dirs: btifCommonIncludes,
-    srcs: [
-      "src/btif_profile_queue.cc",
-      "test/btif_profile_queue_test.cc"
-    ],
-    header_libs: ["libbluetooth_headers"],
-    shared_libs: [
-        "liblog",
-        "libcutils",
-    ],
-    static_libs: [
-        "libbluetooth-types",
-        "libosi_qti",
-        "libbt-common-qti",
-    ],
-    cflags: ["-DBUILDCFG"],
 }

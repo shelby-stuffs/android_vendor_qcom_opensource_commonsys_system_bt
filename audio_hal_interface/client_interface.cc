@@ -460,10 +460,15 @@ void BluetoothAudioClientInterface::fetch_audio_provider() {
 const char* BluetoothAudioClientInterface::GetHalVersion() {
   android::sp<BluetoothAudioProviderFactory_2_1> providersFactory_2_1 =
                                 BluetoothAudioProviderFactory_2_1::getService();
+  android::sp<BluetoothAudioProviderFactory> providersFactory =
+                                BluetoothAudioProviderFactory::getService();
   LOG(INFO) << __func__;
   if (providersFactory_2_1) {
-    LOG(WARNING) << "GetHalVersion - 2.1";
+    LOG(WARNING) << " QC GetHalVersion - 2.1";
     return "hal_2_1";
+  } else if (providersFactory) {
+    LOG(WARNING) << "QC GetHalVersion - 2.0";
+    return "hal_2_0";
   }
   return "hal_2_0";
 }

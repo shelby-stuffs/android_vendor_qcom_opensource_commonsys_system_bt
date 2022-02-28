@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Android Open Source Project
+ * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,68 +49,65 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 
 #pragma once
 
-#include "audio_a2dp_hw/include/audio_a2dp_hw.h"
-#include <vendor/qti/hardware/bluetooth_audio/2.0/types.h>
-#include <vendor/qti/hardware/bluetooth_audio/2.1/types.h>
-#include "osi/include/thread.h"
-#include "bta_av_api.h"
-#include "internal_include/bt_target.h"
-
+#include "client_interface.h"
+#include "../audio_a2dp_hw/include/audio_a2dp_hw.h"
 #include "btif_ahim.h"
-
-using vendor::qti::hardware::bluetooth_audio::V2_0::SessionType;
-using vendor::qti::hardware::bluetooth_audio::V2_0::SessionParamType;
+#include "btif_av.h"
 
 namespace bluetooth {
 namespace audio {
+namespace aidl {
 namespace a2dp {
 
-bool is_hal_2_0_supported();
+namespace {
 
-// Check if new bluetooth_audio is enabled
-bool is_hal_2_0_enabled();
+BluetoothAudioCtrlAck a2dp_ack_to_bt_audio_ctrl_ack(tA2DP_CTRL_ACK ack);
 
-bool is_qc_hal_enabled();
-enum class BluetoothAudioHalVersion : uint8_t {
-  VERSION_2_0 = 0,
-  VERSION_2_1,
-  VERSION_UNAVAILABLE,
+// Provide call-in APIs for the Bluetooth Audio HAL
+class A2dpTransport
+    : public ::bluetooth::audio::aidl::IBluetoothSinkTransportInstance {
+ public:
+  A2dpTransport(SessionType sessionType);
+
+  BluetoothAudioCtrlAck StartRequest(bool is_low_latency) override;
+
+  BluetoothAudioCtrlAck SuspendRequest() override;
+
+  void StopRequest() override;
+
+  bool GetPresentationPosition(uint64_t* remote_delay_report_ns,
+                               uint64_t* total_bytes_read,
+                               timespec* data_position) override;
+
+  void SourceMetadataChanged(const source_metadata_t& source_metadata);
+
+  void SinkMetadataChanged(const sink_metadata_t&) override;
+
+  tA2DP_CTRL_CMD GetPendingCmd() const;
+
+  void ResetPendingCmd();
+
+  void ResetPresentationPosition();
+
+  void LogBytesRead(size_t bytes_read) override;
+
+  // delay reports from AVDTP is based on 1/10 ms (100us)
+  void SetRemoteDelay(uint16_t delay_report);
+
+ private:
+  tA2DP_CTRL_ACK ProcessRequest(tA2DP_CTRL_CMD cmd) {
+    btif_dispatch_sm_event(BTIF_AV_PROCESS_HIDL_REQ_EVT, (char*)&cmd,
+                           sizeof(cmd));
+    return A2DP_CTRL_ACK_PENDING;
+  }
+  static tA2DP_CTRL_CMD a2dp_pending_cmd_;
+  static uint16_t remote_delay_report_;
+  uint64_t total_bytes_read_;
+  timespec data_position_;
 };
-
-// Initialize BluetoothAudio HAL: openProvider
-#if AHIM_ENABLED
-bool init( thread_t* message_loop, uint8_t profile);
-// Set up the codec into BluetoothAudio HAL
-bool setup_codec(uint8_t profile);
-#else
-bool init( thread_t* message_loop);
-// Set up the codec into BluetoothAudio HAL
-bool setup_codec();
-#endif
-
-// Clean up BluetoothAudio HAL
-void cleanup();
-
-// Send command to the BluetoothAudio HAL: StartSession, EndSession,
-// StreamStarted, StreamSuspended
-void start_session();
-void end_session();
-tA2DP_CTRL_CMD get_pending_command();
-bool is_restart_session_needed();
-void reset_pending_command();
-void update_pending_command(tA2DP_CTRL_CMD cmd);
-void ack_stream_started(const tA2DP_CTRL_ACK& status);
-void ack_stream_suspended(const tA2DP_CTRL_ACK& status);
-
-// Read from the FMQ of BluetoothAudio HAL
-size_t read(uint8_t* p_buf, uint32_t len);
-
-// Update A2DP delay report to BluetoothAudio HAL
-void set_remote_delay(uint16_t delay_report);
-bool is_streaming();
-SessionType get_session_type();
-void update_session_params(SessionParamType param_type);
+}  // namespace
 
 }  // namespace a2dp
+}  // namespace aidl
 }  // namespace audio
 }  // namespace bluetooth
