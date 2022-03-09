@@ -247,7 +247,7 @@ typedef enum {
    * Access mode - GET and SET
    * Data type   - uint32_t
    */
-  BT_PROPERTY_ADAPTER_DISCOVERY_TIMEOUT,
+  BT_PROPERTY_ADAPTER_DISCOVERABLE_TIMEOUT,
 
   /* Properties unique to remote device */
   /**
