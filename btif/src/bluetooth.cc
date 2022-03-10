@@ -363,6 +363,10 @@ static int read_energy_info() {
   return BT_STATUS_SUCCESS;
 }
 
+static int clear_event_filter() {
+  return BT_STATUS_SUCCESS;
+}
+
 static void dump(int fd, const char** arguments) {
   if (arguments != NULL && arguments[0] != NULL) {
     if (strncmp(arguments[0], "--proto-bin", 11) == 0) {
@@ -563,6 +567,7 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     set_dynamic_audio_buffer_size,
     generate_local_oob_data,
     allow_low_latency_audio,
+    clear_event_filter,
 };
 
 void invoke_oob_data_request_cb(tBT_TRANSPORT t, bool valid, Octet16 c,
