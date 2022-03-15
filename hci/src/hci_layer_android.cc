@@ -33,6 +33,8 @@
 #include <android/hardware/bluetooth/1.0/IBluetoothHci.h>
 #include <android/hardware/bluetooth/1.0/IBluetoothHciCallbacks.h>
 #include <android/hardware/bluetooth/1.0/types.h>
+#include <android/hardware/bluetooth/1.1/IBluetoothHci.h>
+#include <android/hardware/bluetooth/1.1/IBluetoothHciCallbacks.h>
 #include <hwbinder/ProcessState.h>
 #include <hwbinder/IPCThreadState.h>
 
@@ -40,14 +42,13 @@
 #define LAST_LOG_PATH "/data/misc/bluetooth/logs/firmware_events.log.last"
 
 using android::hardware::IPCThreadState;
-using android::hardware::bluetooth::V1_0::IBluetoothHci;
-using android::hardware::bluetooth::V1_0::IBluetoothHciCallbacks;
 using android::hardware::bluetooth::V1_0::HciPacket;
 using android::hardware::bluetooth::V1_0::Status;
 using android::hardware::ProcessState;
-using ::android::hardware::Return;
-using ::android::hardware::Void;
-using ::android::hardware::hidl_vec;
+using android::hardware::Return;
+using android::hardware::Void;
+using android::hardware::hidl_vec;
+using namespace ::android::hardware::bluetooth;
 
 extern void initialization_complete();
 extern void hci_event_received(const base::Location& from_here,
@@ -57,11 +58,12 @@ extern void sco_data_received(BT_HDR* packet);
 
 static std::mutex bthci_mutex;
 
-android::sp<IBluetoothHci> btHci;
+android::sp<V1_0::IBluetoothHci> btHci;
+android::sp<V1_1::IBluetoothHci> btHci_1_1;
 
 const bool IsLazyHalSupported(property_get_bool("ro.vendor.bt.enablelazyhal", false));
 
-class BluetoothHciCallbacks : public IBluetoothHciCallbacks {
+class BluetoothHciCallbacks : public V1_1::IBluetoothHciCallbacks {
  public:
   BluetoothHciCallbacks() {
     buffer_allocator = buffer_allocator_get_interface();
@@ -109,13 +111,27 @@ class BluetoothHciCallbacks : public IBluetoothHciCallbacks {
     return Void();
   }
 
+  Return<void> isoDataReceived(const hidl_vec<uint8_t>& data) {
+    /* customized change based on the requirements */
+    LOG_INFO(LOG_TAG, "%s", __func__);
+    return Void();
+  }
+
   const allocator_t* buffer_allocator;
 };
 
 void hci_initialize() {
   LOG_INFO(LOG_TAG, "%s", __func__);
 
-  btHci = IBluetoothHci::getService();
+  btHci_1_1 = V1_1::IBluetoothHci::getService();
+
+  if (btHci_1_1 != nullptr) {
+    LOG_INFO(LOG_TAG, "%s Using IBluetoothHci 1.1 service", __func__);
+    btHci = btHci_1_1;
+  } else {
+     LOG_INFO(LOG_TAG, "%s Using IBluetoothHci 1.0 service", __func__);
+     btHci = V1_0::IBluetoothHci::getService();
+  }
   // If android.hardware.bluetooth* is not found, Bluetooth can not continue.
   CHECK(btHci != nullptr);
   LOG_INFO(LOG_TAG, "%s: IBluetoothHci::getService() returned %p (%s)",
@@ -123,16 +139,19 @@ void hci_initialize() {
 
   // Block allows allocation of a variable that might be bypassed by goto.
   {
-    android::sp<IBluetoothHciCallbacks> callbacks = new BluetoothHciCallbacks();
-    auto hidl_daemon_status = btHci->initialize(callbacks);
+    android::sp<V1_1::IBluetoothHciCallbacks> callbacks =
+        new BluetoothHciCallbacks();
+    auto hidl_daemon_status = btHci_1_1 != nullptr ?
+              btHci_1_1->initialize_1_1(callbacks):
+              btHci->initialize(callbacks);
+
     if(!hidl_daemon_status.isOk()) {
       LOG_ERROR(LOG_TAG, "%s: HIDL daemon is dead", __func__);
-
       if (IsLazyHalSupported)
         IPCThreadState::self()->flushCommands();
-
       btHci = nullptr;
-    }
+      btHci_1_1 = nullptr;
+     }
   }
 }
 
@@ -184,6 +203,19 @@ hci_transmit_status_t hci_transmit(BT_HDR* packet) {
       }
       break;
     }
+    case MSG_STACK_TO_HC_HCI_ISO:
+    {
+      if (btHci_1_1 != nullptr) {
+        auto hidl_daemon_status = btHci_1_1->sendIsoData(data);
+        if(!hidl_daemon_status.isOk()) {
+          LOG_ERROR(LOG_TAG, "%s: send iso data failed, HIDL daemon is dead", __func__);
+          status = HCI_TRANSMIT_DAEMON_DIED;
+        }
+      } else {
+        LOG_ERROR(LOG_TAG, "ISO is not supported in HAL v1.0");
+      }
+      break;
+     }
     case MSG_STACK_TO_HC_HCI_SCO:
     {
       auto hidl_daemon_status = btHci->sendScoData(data);

@@ -3,6 +3,7 @@ cc_defaults {
     defaults: ["fluoride_defaults_qti"],
     shared_libs: [
         "android.hardware.bluetooth@1.0",
+        "android.hardware.bluetooth@1.1",
         "libhidlbase",
     ],
 }
