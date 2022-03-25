@@ -122,6 +122,7 @@ typedef struct controller_t {
   bool (*is_adv_audio_supported)(void);
   bool (*is_qbce_QLE_HCI_supported)(void);
   bool (*is_qbce_QCM_HCI_supported)(void);
+  const bt_device_qll_local_supported_features_t* (*get_qll_features)(void);
 } controller_t;
 
 const controller_t* controller_get_interface();

@@ -67,7 +67,7 @@ const uint8_t SCO_HOST_BUFFER_SIZE = 0xff;
 #define QHS_HOST_MODE_HOST_AWARE 3
 
 const bt_event_mask_t QBCE_QLM_AND_QLL_EVENT_MASK = {
-  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x42}};
+  {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x4A}};
 
 static const hci_t* hci;
 static const hci_packet_factory_t* packet_factory;
@@ -109,6 +109,7 @@ static bt_device_host_add_on_features_t host_add_on_features;
 static uint8_t host_add_on_features_length = 0;
 static uint8_t simple_pairing_options = 0;
 static uint8_t maximum_encryption_key_size = 0;
+static bt_device_qll_local_supported_features_t qll_features;
 
 static bool readable;
 static bool ble_supported;
@@ -689,6 +690,11 @@ static future_t* start_up(void) {
     packet_parser->parse_generic_command_complete(response);
   }
 
+  if (HCI_QBCE_QLE_HCI_SUPPORTED(soc_add_on_features.as_array)) {
+    response = AWAIT_COMMAND(packet_factory->make_qbce_read_qll_local_supported_features());
+    packet_parser->parse_qll_read_local_supported_features_response(response, &qll_features);
+  }
+
   if (!HCI_READ_ENCR_KEY_SIZE_SUPPORTED(supported_commands)) {
     LOG(FATAL) << " Controller must support Read Encryption Key Size command";
   }
@@ -1167,6 +1173,12 @@ static bool is_qbce_QCM_HCI_supported(void) {
                soc_add_on_features.as_array);
 }
 
+static const bt_device_qll_local_supported_features_t* get_qll_features(void) {
+  CHECK(readable);
+  CHECK(ble_supported);
+  return &qll_features;
+}
+
 static const controller_t interface = {
     get_is_ready,
 
@@ -1251,6 +1263,7 @@ static const controller_t interface = {
     is_adv_audio_supported,
     is_qbce_QLE_HCI_supported,
     is_qbce_QCM_HCI_supported,
+    get_qll_features,
 };
 
 const controller_t* controller_get_interface() {
