@@ -881,16 +881,14 @@ static void btu_hcif_encryption_change_evt(uint8_t* p) {
     btm_acl_encrypt_change(handle, status, encr_enable);
     btm_sec_encrypt_change(handle, status, encr_enable);
   } else {
-    btsnd_hcic_read_encryption_key_size(
-        handle,
-        base::Bind(&read_encryption_key_size_complete_after_encryption_change));
-#if 0
     // Skip encryption key size check when using set_min_encryption_key_size
     if (!controller_get_interface()->supports_set_min_encryption_key_size()) {
       btsnd_hcic_read_encryption_key_size(handle, base::Bind(
           &read_encryption_key_size_complete_after_encryption_change));
+    } else {
+      btm_acl_encrypt_change(handle, status, encr_enable);
+      btm_sec_encrypt_change(handle, status, encr_enable);
     }
-#endif
   }
 }
 
@@ -1932,9 +1930,14 @@ static void btu_hcif_encryption_key_refresh_cmpl_evt(uint8_t* p) {
   if (status != HCI_SUCCESS || BTM_IsBleConnection(handle)) {
     btm_sec_encrypt_change(handle, status, (status == HCI_SUCCESS) ? 1 : 0);
   } else {
-    btsnd_hcic_read_encryption_key_size(
-        handle,
-        base::Bind(&read_encryption_key_size_complete_after_key_refresh));
+    // Skip encryption key size check when using set_min_encryption_key_size
+    if (!controller_get_interface()->supports_set_min_encryption_key_size()) {
+      btsnd_hcic_read_encryption_key_size(
+          handle,
+          base::Bind(&read_encryption_key_size_complete_after_key_refresh));
+    } else {
+      btm_sec_encrypt_change(handle, status, (status == HCI_SUCCESS) ? 1 : 0);
+    }
   }
 }
 
