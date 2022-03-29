@@ -481,6 +481,9 @@ bool BluetoothAudioClientInterface::UpdateAudioConfig(
            SessionType::HEARING_AID_SOFTWARE_ENCODING_DATAPATH);
   bool is_offload_audio_config =
       (sink_->GetSessionType() == SessionType::A2DP_HARDWARE_OFFLOAD_DATAPATH);
+  LOG(ERROR) << __func__
+             << ": is_software_audio_config: " << is_software_audio_config
+             << ", is_offload_audio_config: " << is_offload_audio_config;
   if (!is_software_audio_config && !is_offload_audio_config) {
     return false;
   }

@@ -57,6 +57,7 @@ using ::aidl::android::hardware::bluetooth::audio::BluetoothAudioStatus;
 
 enum class BluetoothAudioCtrlAck : uint8_t {
   SUCCESS_FINISHED = 0,
+  SUCCESS_RECONFIGURATION,
   PENDING,
   FAILURE_UNSUPPORTED,
   FAILURE_BUSY,
@@ -79,6 +80,8 @@ inline BluetoothAudioStatus BluetoothAudioCtrlAckToHalStatus(
       return BluetoothAudioStatus::FAILURE;
     case BluetoothAudioCtrlAck::FAILURE_DISCONNECTING:
       return BluetoothAudioStatus::FAILURE;
+    case BluetoothAudioCtrlAck::SUCCESS_RECONFIGURATION:
+      return BluetoothAudioStatus::RECONFIGURATION;
     default:
       return BluetoothAudioStatus::FAILURE;
   }

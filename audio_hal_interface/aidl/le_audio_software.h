@@ -268,6 +268,7 @@ class LeAudioClientInterface {
     virtual void CancelStreamingRequest() = 0;
     virtual void ConfirmSuspendRequest() = 0;
     virtual void CancelSuspendRequest() = 0;
+    virtual void CancelSuspendRequestWithReconfig() = 0;
   };
 
  public:
@@ -288,6 +289,7 @@ class LeAudioClientInterface {
     void CancelStreamingRequest() override;
     void ConfirmSuspendRequest() override;
     void CancelSuspendRequest() override;
+    void CancelSuspendRequestWithReconfig() override;
     void SetOffloadParameters(LeAudioConfiguration *lea_config);
 
     // Read the stream of bytes sinked to us by the upper layers
@@ -310,6 +312,7 @@ class LeAudioClientInterface {
     void CancelStreamingRequest() override;
     void ConfirmSuspendRequest() override;
     void CancelSuspendRequest() override;
+    void CancelSuspendRequestWithReconfig() override;
     void SetOffloadParameters(LeAudioConfiguration *lea_config);
 
     // Source the given stream of bytes to be sinked into the upper layers

@@ -162,7 +162,7 @@ extern btif_ahim_client_callbacks_t* pclient_cbs[MAX_CLIENT];
 
 void reg_cb_with_ahim(uint8_t client_id, btif_ahim_client_callbacks_t* pclient_cb);
 
-void btif_ahim_process_request(tA2DP_CTRL_CMD cmd);
+void btif_ahim_process_request(tA2DP_CTRL_CMD cmd, uint8_t profile);
 void btif_ahim_update_current_profile(uint8_t profile);
 
 void btif_ahim_update_src_metadata(const source_metadata_t& source_metadata);
@@ -177,6 +177,8 @@ bool btif_ahim_is_hal_2_0_supported();
 bool btif_ahim_is_hal_2_0_enabled();
 
 bool btif_ahim_is_qc_hal_enabled();
+
+bool btif_ahim_is_qc_lea_enabled();
 
 bool btif_ahim_is_aosp_aidl_hal_enabled();
 

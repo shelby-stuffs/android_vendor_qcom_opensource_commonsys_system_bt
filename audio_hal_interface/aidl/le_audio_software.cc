@@ -58,6 +58,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 
 #include "codec_status.h"
 //#include "hal_version_manager.h"
+#include "btif_ahim.h"
 
 namespace bluetooth {
 namespace audio {
@@ -113,29 +114,26 @@ LeAudioTransport::LeAudioTransport(void (*flush)(void),
 BluetoothAudioCtrlAck LeAudioTransport::StartRequest(bool is_low_latency) {
   LOG(INFO) << __func__;
 
-  if (stream_cb_.on_resume_(true)) {
+    BluetoothAudioCtrlAck status = BluetoothAudioCtrlAck::PENDING;
+    btif_ahim_process_request(A2DP_CTRL_CMD_START, AUDIO_GROUP_MGR);
+    lea_pending_cmd_ = A2DP_CTRL_CMD_START;
     is_pending_start_request_ = true;
-    return BluetoothAudioCtrlAck::PENDING;
-  }
-
-  return BluetoothAudioCtrlAck::FAILURE;
+    //return lea_ack_to_bt_audio_ctrl_ack(status);
+    return status;
 }
 
 BluetoothAudioCtrlAck LeAudioTransport::SuspendRequest() {
   LOG(INFO) << __func__;
-  if (stream_cb_.on_suspend_()) {
-    flush_();
-    return BluetoothAudioCtrlAck::SUCCESS_FINISHED;
-  } else {
-    return BluetoothAudioCtrlAck::FAILURE;
-  }
+    BluetoothAudioCtrlAck status = BluetoothAudioCtrlAck::PENDING;
+    btif_ahim_process_request(A2DP_CTRL_CMD_SUSPEND, AUDIO_GROUP_MGR);
+    lea_pending_cmd_ = A2DP_CTRL_CMD_SUSPEND;     
+    //return lea_ack_to_bt_audio_ctrl_ack(status);
+    return status;
 }
 
 void LeAudioTransport::StopRequest() {
   LOG(INFO) << __func__;
-  if (stream_cb_.on_suspend_()) {
-    flush_();
-  }
+  btif_ahim_process_request(A2DP_CTRL_CMD_STOP, AUDIO_GROUP_MGR);
 }
 
 bool LeAudioTransport::GetPresentationPosition(uint64_t* remote_delay_report_ns,
@@ -159,25 +157,22 @@ void LeAudioTransport::SourceMetadataChanged(
     const source_metadata_t& source_metadata) {
   auto track_count = source_metadata.track_count;
 
-  if (track_count == 0) {
-    LOG(WARNING) << ", invalid number of metadata changed tracks";
-    return;
-  }
-
-  stream_cb_.on_metadata_update_(source_metadata);
+    if (track_count == 0) {
+      LOG(WARNING) << ", invalid number of metadata changed tracks";
+      return;
+    }
+    btif_ahim_update_src_metadata(source_metadata);
 }
 
 void LeAudioTransport::SinkMetadataChanged(
     const sink_metadata_t& sink_metadata) {
   auto track_count = sink_metadata.track_count;
 
-  if (track_count == 0) {
-    LOG(WARNING) << ", invalid number of metadata changed tracks";
-    return;
-  }
-
-  if (stream_cb_.on_sink_metadata_update_)
-    stream_cb_.on_sink_metadata_update_(sink_metadata);
+    if (track_count == 0) {
+      LOG(WARNING) << ", invalid number of metadata changed tracks";
+      return;
+    }
+    btif_ahim_update_sink_metadata(sink_metadata);
 }
 
 
@@ -437,22 +432,19 @@ void LeAudioClientInterface::Sink::SetRemoteDelay(uint16_t delay_report_ms) {
 }
 
 void LeAudioClientInterface::Sink::StartSession() {
-  LOG(INFO) << __func__;
+  LOG(ERROR) << __func__;
   AudioConfigurationAIDL audio_config;
   if (aidl::le_audio::LeAudioSinkTransport::interface->GetTransportInstance()
           ->GetSessionType() ==
       aidl::SessionType::LE_AUDIO_HARDWARE_OFFLOAD_ENCODING_DATAPATH) {
+    LOG(ERROR) << __func__ << " session is le_audio_hardware_encoding";
     aidl::le_audio::LeAudioConfiguration le_audio_config = {};
     audio_config.set<AudioConfigurationAIDL::leAudioConfig>(le_audio_config);
   } else {
+    LOG(ERROR) << __func__ << " session is le_audio_software_encoding";
     audio_config.set<AudioConfigurationAIDL::pcmConfig>(
         aidl::le_audio::LeAudioSinkTransport::instance
             ->LeAudioGetSelectedHalPcmConfig());
-  }
-  if (!aidl::le_audio::LeAudioSinkTransport::interface->UpdateAudioConfig(
-          audio_config)) {
-    LOG(ERROR) << __func__ << ": cannot update audio config to HAL";
-    return;
   }
   aidl::le_audio::LeAudioSinkTransport::interface->StartSession();
 }
@@ -491,12 +483,24 @@ void LeAudioClientInterface::Sink::CancelSuspendRequest() {
       aidl::BluetoothAudioCtrlAck::FAILURE);
 }
 
-void LeAudioClientInterface::Sink::ConfirmStreamingRequest() {
+void LeAudioClientInterface::Sink::CancelSuspendRequestWithReconfig() {
   LOG(INFO) << __func__;
+  // TODO
+  /*
   if (!aidl::le_audio::LeAudioSinkTransport::instance->IsPendingStartStream()) {
     LOG(WARNING) << ", no pending start stream request";
     return;
-  }
+  } */
+  aidl::le_audio::LeAudioSinkTransport::interface->StreamSuspended(
+      aidl::BluetoothAudioCtrlAck::SUCCESS_RECONFIGURATION);
+}
+
+void LeAudioClientInterface::Sink::ConfirmStreamingRequest() {
+  LOG(INFO) << __func__;
+  /*if (!aidl::le_audio::LeAudioSinkTransport::instance->IsPendingStartStream()) {
+    LOG(WARNING) << ", no pending start stream request";
+    return;
+  } */
   aidl::le_audio::LeAudioSinkTransport::instance->ClearPendingStartStream();
   aidl::le_audio::LeAudioSinkTransport::interface->StreamStarted(
       aidl::BluetoothAudioCtrlAck::SUCCESS_FINISHED);
@@ -521,9 +525,11 @@ void LeAudioClientInterface::Sink::StopSession() {
 
 void LeAudioClientInterface::Sink::UpdateAudioConfigToHal(
                          AudioConfigurationAIDL& offload_config) {
+  LOG(INFO) << __func__;
   if (aidl::le_audio::LeAudioSinkTransport::interface->GetTransportInstance()
           ->GetSessionType() !=
       aidl::SessionType::LE_AUDIO_HARDWARE_OFFLOAD_ENCODING_DATAPATH) {
+    LOG(INFO) << __func__ << "seesion is not le audio hardware encoding, return";
     return;
   }
   aidl::le_audio::LeAudioSinkTransport::interface->
@@ -577,12 +583,6 @@ void LeAudioClientInterface::Source::StartSession() {
         aidl::le_audio::LeAudioSourceTransport::instance
             ->LeAudioGetSelectedHalPcmConfig());
   }
-
-  if (!aidl::le_audio::LeAudioSourceTransport::interface->UpdateAudioConfig(
-          audio_config)) {
-    LOG(ERROR) << __func__ << ": cannot update audio config to HAL";
-    return;
-  }
   aidl::le_audio::LeAudioSourceTransport::interface->StartSession();
 }
 
@@ -620,14 +620,26 @@ void LeAudioClientInterface::Source::CancelSuspendRequest() {
       aidl::BluetoothAudioCtrlAck::FAILURE);
 }
 
+void LeAudioClientInterface::Source::CancelSuspendRequestWithReconfig() {
+  LOG(INFO) << __func__;
+  // TODO
+  /*
+  if (!aidl::le_audio::LeAudioSourceTransport::instance->IsPendingStartStream()) {
+    LOG(WARNING) << ", no pending start stream request";
+    return;
+  } */
+  aidl::le_audio::LeAudioSourceTransport::interface->StreamSuspended(
+      aidl::BluetoothAudioCtrlAck::SUCCESS_RECONFIGURATION);
+}
+
 void LeAudioClientInterface::Source::ConfirmStreamingRequest() {
   LOG(INFO) << __func__;
-  if ((aidl::le_audio::LeAudioSourceTransport::instance &&
+  /*if ((aidl::le_audio::LeAudioSourceTransport::instance &&
        !aidl::le_audio::LeAudioSourceTransport::instance
             ->IsPendingStartStream())) {
     LOG(WARNING) << ", no pending start stream request";
     return;
-  }
+  }*/
 
   aidl::le_audio::LeAudioSourceTransport::instance->ClearPendingStartStream();
   aidl::le_audio::LeAudioSourceTransport::interface->StreamStarted(
@@ -654,7 +666,13 @@ void LeAudioClientInterface::Source::StopSession() {
 
 void LeAudioClientInterface::Source::UpdateAudioConfigToHal(
                               AudioConfigurationAIDL& offload_config) {
-  // TODO to get the complete code
+  if (aidl::le_audio::LeAudioSourceTransport::interface->GetTransportInstance()
+          ->GetSessionType() !=
+      aidl::SessionType::LE_AUDIO_HARDWARE_OFFLOAD_DECODING_DATAPATH) {
+    return;
+  }
+  aidl::le_audio::LeAudioSourceTransport::interface->
+                                  UpdateAudioConfig(offload_config);
 }
 
 size_t LeAudioClientInterface::Source::Write(const uint8_t* p_buf,

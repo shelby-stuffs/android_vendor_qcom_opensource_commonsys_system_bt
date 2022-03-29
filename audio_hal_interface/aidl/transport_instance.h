@@ -103,6 +103,8 @@ class IBluetoothTransportInstance {
   AudioConfiguration GetAudioConfiguration() const { return audio_config_; }
 
   void UpdateAudioConfiguration(const AudioConfiguration& audio_config) {
+    LOG(ERROR) << __func__
+              << "AIDL: UpdateAudioConfiguration IBluetoothTransportInstance";
     switch (audio_config.getTag()) {
       case AudioConfiguration::pcmConfig:
         audio_config_.set<AudioConfiguration::pcmConfig>(
@@ -113,6 +115,8 @@ class IBluetoothTransportInstance {
             audio_config.get<AudioConfiguration::a2dpConfig>());
         break;
       case AudioConfiguration::leAudioConfig:
+        LOG(ERROR) << __func__
+                   << "AIDL: UpdateAudioConfiguration leAudioConfig";
         audio_config_.set<AudioConfiguration::leAudioConfig>(
             audio_config.get<AudioConfiguration::leAudioConfig>());
         break;

@@ -128,7 +128,7 @@ BluetoothAudioCtrlAck A2dpTransport::StartRequest(bool is_low_latency) {
     return a2dp_ack_to_bt_audio_ctrl_ack(A2DP_CTRL_ACK_FAILURE);
   }
   a2dp_pending_cmd_ = A2DP_CTRL_CMD_START;
-  btif_ahim_process_request(A2DP_CTRL_CMD_START);
+  btif_ahim_process_request(A2DP_CTRL_CMD_START, A2DP);
   return a2dp_ack_to_bt_audio_ctrl_ack(status);
 }
 
@@ -143,12 +143,12 @@ BluetoothAudioCtrlAck A2dpTransport::SuspendRequest() {
     return a2dp_ack_to_bt_audio_ctrl_ack(A2DP_CTRL_ACK_FAILURE);
   }
   a2dp_pending_cmd_ = A2DP_CTRL_CMD_SUSPEND;
-  btif_ahim_process_request(A2DP_CTRL_CMD_SUSPEND);
+  btif_ahim_process_request(A2DP_CTRL_CMD_SUSPEND, A2DP);
   return a2dp_ack_to_bt_audio_ctrl_ack(status);
 }
 
 void A2dpTransport::StopRequest() {
-  btif_ahim_process_request(A2DP_CTRL_CMD_STOP);
+  btif_ahim_process_request(A2DP_CTRL_CMD_STOP, A2DP);
 }
 
 bool A2dpTransport::GetPresentationPosition(uint64_t* remote_delay_report_ns,

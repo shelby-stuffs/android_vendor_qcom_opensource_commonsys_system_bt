@@ -355,7 +355,7 @@ class A2dpTransport_2_1 : public ::bluetooth::audio::IBluetoothTransportInstance
   tA2DP_CTRL_ACK ProcessRequest(tA2DP_CTRL_CMD cmd) {
     ack_status = A2DP_CTRL_ACK_PENDING;
 #if AHIM_ENABLED
-    btif_ahim_process_request(cmd);
+    btif_ahim_process_request(cmd, A2DP);
 #else
     btif_dispatch_sm_event(BTIF_AV_PROCESS_HIDL_REQ_EVT, (char*)&cmd,
                           sizeof(cmd));
@@ -389,6 +389,7 @@ bool is_configured = false;
 bool is_playing = false;
 bool is_hal_version_fetched = false;
 bool hal_2_1_enabled = false;
+bool hal_2_0_enabled = false;
 
 BluetoothAudioCtrlAck a2dp_ack_to_bt_audio_ctrl_ack(tA2DP_CTRL_ACK ack) {
   switch (ack) {
@@ -2260,6 +2261,10 @@ void get_hal_version() {
       LOG(WARNING) << __func__ << ":hal version 2.1";
       hal_2_1_enabled = true;
       is_hal_version_fetched = true;
+    } else if (!strcmp(hal_clientif->GetHalVersion(),"hal_2_0")) {
+      LOG(WARNING) << __func__ << ":hal version 2.1";
+      hal_2_0_enabled = true;
+      is_hal_version_fetched = true;
     }
   }
 }
@@ -2268,18 +2273,14 @@ static bool is_qti_hal_enabled = false;
 
 bool is_qc_hal_enabled() {
   LOG(WARNING) << __func__;
-  if (!is_hal_version_fetched) {
-    bluetooth::audio::BluetoothAudioClientInterface* hal_clientif = nullptr;
-    IBluetoothTransportInstance_2_1* sink = nullptr;
-    hal_clientif = new bluetooth::audio::BluetoothAudioClientInterface(
-     sink, nullptr, nullptr);
-    if (!strcmp(hal_clientif->GetHalVersion(),"hal_2_1") ||
-        !strcmp(hal_clientif->GetHalVersion(),"hal_2_0")) {
-      LOG(WARNING) << __func__ << ":QC hal enabled";
-      is_qti_hal_enabled = true;
-    }
-  }
-  return is_qti_hal_enabled;
+  get_hal_version();
+  return (hal_2_0_enabled || hal_2_1_enabled);
+}
+
+bool is_qc_lea_enabled() {
+  LOG(WARNING) << __func__;
+  get_hal_version();
+  return hal_2_1_enabled;
 }
 
 // Initialize BluetoothAudio HAL: openProvider

@@ -71,6 +71,9 @@ bool is_hal_2_0_supported();
 bool is_hal_2_0_enabled();
 
 bool is_qc_hal_enabled();
+
+bool is_qc_lea_enabled();
+
 enum class BluetoothAudioHalVersion : uint8_t {
   VERSION_2_0 = 0,
   VERSION_2_1,

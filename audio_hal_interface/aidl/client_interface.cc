@@ -57,6 +57,8 @@ namespace bluetooth {
 namespace audio {
 namespace aidl {
 
+using ::aidl::android::hardware::bluetooth::audio::LeAudioConfiguration;
+using ::aidl::android::hardware::bluetooth::audio::LeAudioCodecConfiguration;
 
 std::ostream& operator<<(std::ostream& os, const BluetoothAudioCtrlAck& ack) {
   switch (ack) {
@@ -250,19 +252,42 @@ bool BluetoothAudioClientInterface::UpdateAudioConfig(
        transport_->GetSessionType() ==
            SessionType::LE_AUDIO_HARDWARE_OFFLOAD_DECODING_DATAPATH);
   auto audio_config_tag = audio_config.getTag();
+
+  LOG(ERROR) << __func__
+             << "AIDL: is_software_session: " << is_software_session
+             << ", is_a2dp_offload_session: " << is_a2dp_offload_session
+             << ", is_leaudio_offload_session: " << is_leaudio_offload_session;
+
+  LOG(ERROR) << __func__
+             << ": audio_config_tag: " << audio_config_tag;
+
   bool is_software_audio_config =
       (is_software_session &&
        audio_config_tag == AudioConfiguration::pcmConfig);
+
   bool is_a2dp_offload_audio_config =
       (is_a2dp_offload_session &&
        audio_config_tag == AudioConfiguration::a2dpConfig);
+
   bool is_leaudio_offload_audio_config =
       (is_leaudio_offload_session &&
        audio_config_tag == AudioConfiguration::leAudioConfig);
+
+  LOG(ERROR) << __func__
+        << "AIDL: is_software_audio_config: " << is_software_audio_config
+        << ", is_a2dp_offload_audio_config: " << is_a2dp_offload_audio_config
+        << ", is_leaudio_offload_audio_config: " << is_leaudio_offload_audio_config;
+
   if (!is_software_audio_config && !is_a2dp_offload_audio_config &&
       !is_leaudio_offload_audio_config) {
     return false;
   }
+
+  if (is_leaudio_offload_audio_config) {
+    const LeAudioConfiguration *leAudioConfig =
+	     (&audio_config.get<AudioConfiguration::leAudioConfig>());
+  }
+
   transport_->UpdateAudioConfiguration(audio_config);
 
   if (provider_ == nullptr) {
