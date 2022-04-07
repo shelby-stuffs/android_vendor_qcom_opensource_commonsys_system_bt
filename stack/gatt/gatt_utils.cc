@@ -1530,8 +1530,11 @@ void gatt_cleanup_upon_disc(const RawAddress& bda, uint16_t reason,
     gatt_end_operation(p_clcb, GATT_ERROR, NULL);
   }
 
+  alarm_cancel(p_tcb->ind_ack_timer);
   alarm_free(p_tcb->ind_ack_timer);
   p_tcb->ind_ack_timer = NULL;
+
+  alarm_cancel(p_tcb->conf_timer);
   alarm_free(p_tcb->conf_timer);
   p_tcb->conf_timer = NULL;
   fixed_queue_free(p_tcb->sr_cmd.multi_rsp_q, NULL);

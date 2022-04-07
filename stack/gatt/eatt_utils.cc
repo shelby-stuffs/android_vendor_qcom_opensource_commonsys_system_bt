@@ -148,8 +148,11 @@ bool gatt_eatt_bcb_dealloc(tGATT_TCB* p_tcb, uint16_t lcid) {
       gatt_remove_conns_by_cid(p_tcb, p_eatt_bcb->cid);
 
       if (lcid != L2CAP_ATT_CID) {
+        alarm_cancel(p_eatt_bcb->ind_ack_timer);
         alarm_free(p_eatt_bcb->ind_ack_timer);
         p_eatt_bcb->ind_ack_timer = NULL;
+
+        alarm_cancel(p_eatt_bcb->conf_timer);
         alarm_free(p_eatt_bcb->conf_timer);
         p_eatt_bcb->conf_timer = NULL;
         gatt_free_pending_ind(p_eatt_bcb->p_tcb, lcid);
@@ -196,8 +199,10 @@ uint8_t gatt_eatt_bcb_in_progress_dealloc(RawAddress& bda) {
       p_eatt_bcb = &gatt_cb.eatt_bcb[i];
 
       if (p_eatt_bcb->cid != L2CAP_ATT_CID) {
+        alarm_cancel(p_eatt_bcb->ind_ack_timer);
         alarm_free(p_eatt_bcb->ind_ack_timer);
         p_eatt_bcb->ind_ack_timer = NULL;
+        alarm_cancel(p_eatt_bcb->conf_timer);
         alarm_free(p_eatt_bcb->conf_timer);
         p_eatt_bcb->conf_timer = NULL;
         gatt_free_pending_ind(p_eatt_bcb->p_tcb, p_eatt_bcb->cid);
