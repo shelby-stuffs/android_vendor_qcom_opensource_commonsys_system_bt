@@ -1433,7 +1433,7 @@ static bool gatts_process_db_out_of_sync(tGATT_TCB& tcb, uint16_t cid,
       // Check if read database hash by UUID
       Uuid uuid = Uuid::kEmpty;
       uint16_t s_hdl = 0, e_hdl = 0;
-      uint16_t db_hash_handle = gatt_cb.handle_of_database_hash;
+      uint16_t db_hash_handle = gatt_get_db_hash_char_handle();
       tGATT_STATUS reason = gatts_validate_packet_format(op_code, len, p_data,
                                                          &uuid, s_hdl, e_hdl);
       if (reason == GATT_SUCCESS &&
@@ -1455,7 +1455,7 @@ static bool gatts_process_db_out_of_sync(tGATT_TCB& tcb, uint16_t cid,
         len -= 2;
       }
 
-      if (status == GATT_SUCCESS && handle == gatt_cb.handle_of_database_hash)
+      if (status == GATT_SUCCESS && handle == gatt_get_db_hash_char_handle())
         should_ignore = false;
 
     } break;
@@ -1466,6 +1466,7 @@ static bool gatts_process_db_out_of_sync(tGATT_TCB& tcb, uint16_t cid,
     case GATT_REQ_READ_MULTI:       /* read multi char*/
     case GATT_REQ_WRITE:            /* write char/char descriptor value */
     case GATT_REQ_PREPARE_WRITE:    /* write long char */
+    case GATT_REQ_READ_MULTI_VARIABLE: /* read multi variable request */
       // Use default value
       break;
     case GATT_CMD_WRITE:      /* cmd */

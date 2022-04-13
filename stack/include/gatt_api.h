@@ -374,6 +374,7 @@ typedef uint8_t tGATT_AUTH_REQ;
 /*
  * EATT Supported value
  */
+#define GATT_WRITE_ROBUST_CACHING_SUPPORT_VALUE 0x01
 #define GATT_WRITE_EATT_SUPPORT_VALUE 0x02
 #define GATT_WRITE_MULTI_NOTIF_SUPPORT 0x04
 
@@ -1273,6 +1274,19 @@ extern tGATT_STATUS GATTS_ConfigureMTU(uint16_t conn_id, uint16_t mtu);
  *
  ******************************************************************************/
 extern tGATT_STATUS GATTS_CheckStatusForApp(uint16_t conn_id, bool confirm);
+
+/*******************************************************************************
+ *
+ * Function         GATT_EnableRobustCaching
+ *
+ * Description      Perform EATT support discovery procedure on remote device
+ *
+ * Returns          None.
+ *
+ ******************************************************************************/
+extern void GATT_EnableRobustCaching(const RawAddress& remote_bda,
+                                     tBT_TRANSPORT transport);
+
 
 // Enables the GATT profile on the device.
 // It clears out the control blocks, and registers with L2CAP.
