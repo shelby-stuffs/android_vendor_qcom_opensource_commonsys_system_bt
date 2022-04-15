@@ -81,6 +81,8 @@ bool A2dpAptxToHalConfig(CodecConfiguration* codec_config,
                          A2dpCodecConfig* a2dp_config);
 bool A2dpLdacToHalConfig(CodecConfiguration* codec_config,
                          A2dpCodecConfig* a2dp_config);
+bool A2dpAptxAdaptiveToHalConfig(CodecConfiguration* codec_config,
+                         A2dpCodecConfig* a2dp_config);
 
 bool a2dp_is_audio_codec_config_params_changed_aidl(
                        CodecConfiguration* codec_config, A2dpCodecConfig* a2dp_config);

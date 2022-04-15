@@ -258,8 +258,8 @@ bool BluetoothAudioClientInterface::UpdateAudioConfig(
              << ", is_a2dp_offload_session: " << is_a2dp_offload_session
              << ", is_leaudio_offload_session: " << is_leaudio_offload_session;
 
-  LOG(ERROR) << __func__
-             << ": audio_config_tag: " << audio_config_tag;
+  //LOG(ERROR) << __func__
+  //             << ": audio_config_tag: " << audio_config_tag;
 
   bool is_software_audio_config =
       (is_software_session &&

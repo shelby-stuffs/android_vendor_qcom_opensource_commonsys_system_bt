@@ -421,8 +421,8 @@ bool leAudio_get_selected_hal_codec_config(AudioConfigurationAIDL *lea_config,
     } else { //unicast
       lea_config->set<AudioConfigurationAIDL::leAudioConfig>
                          (fetch_offload_audio_config(profile, direction));
-      LOG(ERROR) << __func__
-             << ": lea_config: " << lea_config->getTag();
+      //LOG(ERROR) << __func__
+      //       << ": lea_config: " << lea_config->getTag();
   }
   //LOG(INFO) << __func__ << ": lea_config=" << toString(*lea_config);
   return true;
@@ -450,8 +450,8 @@ bool btif_ahim_setup_codec(uint8_t profile) {
           return false;
         }
 
-        LOG(ERROR) << __func__
-             << ": audio_config_tag: " << lea_tx_config.getTag();
+        //LOG(ERROR) << __func__
+        //     << ": audio_config_tag: " << lea_tx_config.getTag();
         // TODO to fill both session/single session configs based on profile
         if(sinkClientInterface)
           sinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
