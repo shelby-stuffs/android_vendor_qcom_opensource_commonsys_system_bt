@@ -1546,7 +1546,7 @@ void gatt_cleanup_upon_disc(const RawAddress& bda, uint16_t reason,
       (*p_reg->app_cb.p_conn_cb)(p_reg->gatt_if, bda, conn_id, false, reason,
                                  transport);
 
-      if (p_tcb->is_eatt_supported) {
+      if (p_tcb->is_eatt_supported && (transport == BT_TRANSPORT_LE)) {
         lcid = gatt_get_cid_by_conn_id(conn_id);
       }
       if (lcid != L2CAP_ATT_CID)
@@ -1554,9 +1554,10 @@ void gatt_cleanup_upon_disc(const RawAddress& bda, uint16_t reason,
     }
   }
 
-  gatt_free_pending_ind(p_tcb, L2CAP_ATT_CID);
-
-  eatt_cleanup_upon_disc(bda);
+  if (transport == BT_TRANSPORT_LE) {
+    gatt_free_pending_ind(p_tcb, L2CAP_ATT_CID);
+    eatt_cleanup_upon_disc(bda);
+  }
 
   p_tcb->is_eatt_supported = false;
   p_tcb->is_eatt_upgrade_done = false;

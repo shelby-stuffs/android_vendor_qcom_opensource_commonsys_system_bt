@@ -476,6 +476,7 @@ tGATT_EBCB* gatt_find_best_eatt_bcb(tGATT_TCB* p_tcb, tGATT_IF gatt_if, uint16_t
     gatt_add_conn(conn_id, p_eatt_bcb->cid);
   }
   else {
+    VLOG(1) << __func__ << " Disconnect LE link as no suitable ATT/EATT channels availble:";
     uint16_t conn_handle = BTM_GetHCIConnHandle(p_tcb->peer_bda, BT_TRANSPORT_LE);
     btm_sec_disconnect(conn_handle, GATT_CONN_TERMINATE_LOCAL_HOST);
   }
