@@ -1579,7 +1579,7 @@ static void btif_dm_search_devices_evt(uint16_t event, char* p_param) {
       }
 
       {
-        bt_property_t properties[6];
+        bt_property_t properties[7];
         bt_device_type_t dev_type;
         uint32_t num_properties = 0;
         bt_status_t status;
@@ -1674,6 +1674,13 @@ static void btif_dm_search_devices_evt(uint16_t event, char* p_param) {
                                      sizeof(gid_data), &gid_data);
           num_properties++;
         }
+
+        /* CSIP supported device */
+        BTIF_STORAGE_FILL_PROPERTY(&properties[num_properties],
+                                   BT_PROPERTY_REMOTE_IS_COORDINATED_SET_MEMBER,
+                                   sizeof(bool),
+                                   &(p_search_data->inq_res.include_rsi));
+        num_properties++;
 
         status =
             btif_storage_add_remote_device(&bdaddr, num_properties, properties);

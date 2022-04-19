@@ -798,6 +798,7 @@ typedef struct {
   uint8_t flag;
   RawAddress original_bda; /* original address to pass up to
                               GattService#onScanResult */
+  bool include_rsi; /* true, if ADV contains RSI data */
 } tBTA_DM_INQ_RES;
 
 /* Structure associated with BTA_DM_INQ_CMPL_EVT */
