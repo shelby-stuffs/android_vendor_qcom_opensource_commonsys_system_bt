@@ -75,6 +75,10 @@ using bluetooth::audio::aidl::le_audio::LeAudioClientInterface;
 using AudioConfigurationAIDL =
     ::aidl::android::hardware::bluetooth::audio::AudioConfiguration;
 
+using ChannelModeAIDL =
+	::aidl::android::hardware::bluetooth::audio::ChannelMode;
+using ::aidl::android::hardware::bluetooth::audio::CodecType;
+using ::aidl::android::hardware::bluetooth::audio::LeAudioBroadcastConfiguration;
 using ::aidl::android::hardware::bluetooth::audio::LeAudioConfiguration;
 using SessionTypeAIDL = ::aidl::android::hardware::bluetooth::audio::SessionType;
 using ::aidl::android::hardware::bluetooth::audio::LeAudioCodecConfiguration;
@@ -83,8 +87,9 @@ using ::aidl::android::hardware::bluetooth::audio::UnicastCapability;
 using vendor::qti::hardware::bluetooth_audio::V2_1::LC3ChannelMode;
 //using ::bluetooth::audio::BitsPerSample;
 LeAudioClientInterface* leAudioClientInterface = nullptr;
-LeAudioClientInterface::Sink* sinkClientInterface = nullptr;
-LeAudioClientInterface::Source* sourceClientInterface = nullptr;
+LeAudioClientInterface::Sink* unicastSinkClientInterface = nullptr;
+LeAudioClientInterface::Sink* broadcastSinkClientInterface = nullptr;
+LeAudioClientInterface::Source* unicastSourceClientInterface = nullptr;
 
 std::mutex src_metadata_wait_mutex_;
 std::condition_variable src_metadata_wait_cv;
@@ -253,9 +258,18 @@ bool btif_ahim_init_hal(thread_t *t, uint8_t profile) {
           LOG(ERROR) << __func__ << ", can't get LE audio client interface";
           return false;
         }
-        bluetooth::audio::aidl::le_audio::StreamCallbacks stream_cb;
-        sinkClientInterface = leAudioClientInterface->GetSink(stream_cb, t);
-        sourceClientInterface = leAudioClientInterface->GetSource(stream_cb, t);
+      }
+      bluetooth::audio::aidl::le_audio::StreamCallbacks stream_cb;
+      if (profile == AUDIO_GROUP_MGR) {
+        if (unicastSinkClientInterface == nullptr)
+          unicastSinkClientInterface = leAudioClientInterface->GetSink(stream_cb, t, false);
+        if (unicastSourceClientInterface == nullptr)
+          unicastSourceClientInterface = leAudioClientInterface->GetSource(stream_cb, t);
+      } else if (profile == BROADCAST) {
+        BTIF_TRACE_IMP("%s: Init AIDL interface for broadcast session", __func__);
+        if (broadcastSinkClientInterface == nullptr)
+          broadcastSinkClientInterface = leAudioClientInterface->GetSink(stream_cb, t, true);
+        btif_ahim_setup_codec(BROADCAST);
       }
     }
   } else if(btif_ahim_is_qc_hal_enabled()) {
@@ -269,8 +283,20 @@ void btif_ahim_cleanup_hal(uint8_t profile) {
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
     if (profile == A2DP) {
       bluetooth::audio::aidl::a2dp::cleanup();
-    } else if ((profile == AUDIO_GROUP_MGR)  || (profile == BROADCAST)) {
-      bluetooth::audio::aidl::a2dp::cleanup(); //leaudio session path needs to be added
+    } else {
+      if(leAudioClientInterface == nullptr) {
+        leAudioClientInterface = LeAudioClientInterface::Get();
+        if (leAudioClientInterface == nullptr) {
+          LOG(ERROR) << __func__ << ", can't get LE audio client interface";
+          return;
+        }
+      }
+      if (profile == AUDIO_GROUP_MGR) {
+        bluetooth::audio::aidl::a2dp::cleanup(); //leaudio session path needs to be added
+      } else if (profile == BROADCAST) {
+        leAudioClientInterface->ReleaseSink(broadcastSinkClientInterface);
+        broadcastSinkClientInterface = nullptr;
+      }
     }
   } else if (btif_ahim_is_qc_hal_enabled()) {
     bluetooth::audio::a2dp::cleanup();
@@ -370,6 +396,22 @@ int btif_lc3_sample_rate(uint16_t rate) {
   }
 }
 
+ChannelModeAIDL btif_lc3_aidl_channel_mode(uint8_t mode) {
+BTIF_TRACE_IMP("%s:", __func__);
+  switch (mode) {
+    case BTAV_A2DP_CODEC_CHANNEL_MODE_MONO:
+      return ChannelModeAIDL::MONO;
+    case BTAV_A2DP_CODEC_CHANNEL_MODE_STEREO:
+      return ChannelModeAIDL::STEREO;
+    case 4://to be defined common to bap
+      return ChannelModeAIDL::UNKNOWN;
+    case 8://to be defined common to bap
+      return ChannelModeAIDL::UNKNOWN;
+    default:
+      return ChannelModeAIDL::UNKNOWN;
+  }
+}
+
 LC3ChannelMode btif_lc3_channel_mode(uint8_t mode) {
 BTIF_TRACE_IMP("%s:", __func__);
   switch (mode) {
@@ -384,6 +426,45 @@ BTIF_TRACE_IMP("%s:", __func__);
     default:
       return LC3ChannelMode::UNKNOWN;
   }
+}
+
+LeAudioBroadcastConfiguration fetch_offload_broadcast_audio_config() {
+  BTIF_TRACE_IMP("%s: ", __func__);
+
+  int numBises = pclient_cbs[BROADCAST - 1]->get_ch_count_cb();
+  uint32_t bit_rate = pclient_cbs[BROADCAST - 1]->get_bitrate_cb(TX_ONLY_CONFIG);
+  uint16_t sample_rate = pclient_cbs[BROADCAST - 1]->get_sample_rate_cb(TX_ONLY_CONFIG);
+  uint16_t frame_duration = pclient_cbs[BROADCAST - 1]->get_frame_length_cb(TX_ONLY_CONFIG);
+  uint32_t mtu = pclient_cbs[BROADCAST - 1]->get_mtu_cb(bit_rate, TX_ONLY_CONFIG);
+  uint8_t channel_mode = pclient_cbs[BROADCAST - 1]->get_channel_mode_cb(TX_ONLY_CONFIG);
+
+  LeAudioBroadcastConfiguration bcast_config = {
+      .codecType = CodecType::LC3};
+
+  for (int i = 0; i < numBises; i++) {
+    Lc3Configuration lc3_config = {
+        .pcmBitDepth = 24,
+        .samplingFrequencyHz = btif_lc3_sample_rate(sample_rate),
+        .frameDurationUs = static_cast<int32_t>(frame_duration),
+        .octetsPerFrame = static_cast<int32_t>(mtu),
+        .blocksPerSdu = 1,
+        .channelMode = btif_lc3_aidl_channel_mode(channel_mode)
+    };
+
+    int channel_allocation;
+    if (lc3_config.channelMode == ChannelModeAIDL::STEREO) {
+      channel_allocation = (CHANNEL_FL + (i % 2));
+    } else {
+      channel_allocation = CHANNEL_MONO;
+    }
+
+    bcast_config.streamMap.push_back({
+        .streamHandle = static_cast<char16_t>(i),
+        .audioChannelAllocation = channel_allocation,
+        .leAudioCodecConfig = LeAudioCodecConfiguration(lc3_config)
+    });
+  }
+  return bcast_config;
 }
 
 LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
@@ -430,41 +511,11 @@ bool leAudio_get_selected_hal_codec_config(AudioConfigurationAIDL *lea_config,
                         << ": direction: " << direction;
   int cis_count = 2;
   if (profile == BROADCAST) {
-#if 0
-      lea_config->mode = LeAudioMode::BROADCAST;
-      lea_config->config.broadcastConfig({});
-      int numBises = pclient_cbs[profile - 1]->get_ch_count_cb();
-      android::hardware::hidl_vec<BroadcastStreamMap> svec =
-       android::hardware::hidl_vec<BroadcastStreamMap>(numBises);
-      for (int i = 0; i < numBises; i++) {
-        svec[i].lc3Config.samplingFrequency =
-        btif_lc3_sample_rate(pclient_cbs[profile - 1]->
-                          get_sample_rate_cb(TX_ONLY_CONFIG));
-        svec[i].lc3Config.octetsPerFrame = pclient_cbs[profile - 1]->
-        get_mtu_cb(pclient_cbs[profile - 1]->get_bitrate_cb(TX_ONLY_CONFIG),
-        TX_ONLY_CONFIG);
-        switch (pclient_cbs[profile - 1]->get_frame_length_cb(TX_ONLY_CONFIG))
-        {
-            case 7500:
-            svec[i].lc3Config.frameDuration = Lc3FrameDuration::DURATION_7500US;
-            break;
-            case 10000:
-            default:
-            svec[i].lc3Config.frameDuration = Lc3FrameDuration::DURATION_10000US;
-            break;
-        }
-        svec[i].lc3Config.pcmBitDepth = BitsPerSample::BITS_24;
-        svec[i].lc3Config.blocksPerSdu = 1;
-        svec[i].streamHandle = i;
-        svec[i].audioChannelAllocation = CHANNEL_FL + (i%2);
-        LOG(INFO) << __func__ << ": sample: "
-                  << toString(svec[i].lc3Config.samplingFrequency);
-      }
-      lea_config->config.broadcastConfig().streamMap = svec;
-#endif
-    } else { //unicast
-      lea_config->set<AudioConfigurationAIDL::leAudioConfig>
-                         (fetch_offload_audio_config(profile, direction));
+    lea_config->set<AudioConfigurationAIDL::leAudioBroadcastConfig>
+                       (fetch_offload_broadcast_audio_config());
+  } else { //unicast
+    lea_config->set<AudioConfigurationAIDL::leAudioConfig>
+                       (fetch_offload_audio_config(profile, direction));
       //LOG(ERROR) << __func__
       //       << ": lea_config: " << lea_config->getTag();
   }
@@ -482,7 +533,7 @@ bool btif_ahim_setup_codec(uint8_t profile) {
     BTIF_TRACE_IMP("%s: AIDL, profile: %d", __func__, profile);
     if (profile == A2DP) {
       return bluetooth::audio::aidl::a2dp::setup_codec();
-    } else if ((profile == AUDIO_GROUP_MGR)  || (profile == BROADCAST)) {
+    } else if (profile == AUDIO_GROUP_MGR) {
       AudioConfigurationAIDL lea_tx_config;
       AudioConfigurationAIDL lea_rx_config;
       uint16_t profile_type = btif_ahim_get_lea_active_profile(profile);
@@ -497,8 +548,8 @@ bool btif_ahim_setup_codec(uint8_t profile) {
         //LOG(ERROR) << __func__
         //     << ": audio_config_tag: " << lea_tx_config.getTag();
         // TODO to fill both session/single session configs based on profile
-        if(sinkClientInterface)
-          sinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX) { // Toair and FromAir
         if (!leAudio_get_selected_hal_codec_config(&lea_tx_config, profile,
@@ -506,16 +557,16 @@ bool btif_ahim_setup_codec(uint8_t profile) {
           LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
           return false;
         }
-        if(sinkClientInterface)
-          sinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
 
         if (!leAudio_get_selected_hal_codec_config(&lea_rx_config, profile,
                                                     TX_RX_BOTH_CONFIG)) {
           LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
           return false;
         }
-        if(sourceClientInterface)
-          sourceClientInterface->UpdateAudioConfigToHal(lea_rx_config);
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->UpdateAudioConfigToHal(lea_rx_config);
 
       } else if(profile_type == WMCP) { // FromAir only
         if (!leAudio_get_selected_hal_codec_config(&lea_rx_config, profile,
@@ -523,9 +574,18 @@ bool btif_ahim_setup_codec(uint8_t profile) {
           LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
           return false;
         }
-        if(sourceClientInterface)
-          sourceClientInterface->UpdateAudioConfigToHal(lea_rx_config);
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->UpdateAudioConfigToHal(lea_rx_config);
       }
+    } else if (profile == BROADCAST) {
+        AudioConfigurationAIDL lea_tx_config;
+        if (!leAudio_get_selected_hal_codec_config(&lea_tx_config, profile,
+                                                    TX_ONLY_CONFIG)) {
+          LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration for Broadcast";
+          return false;
+        }
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
     }
   }else if (btif_ahim_is_qc_hal_enabled()) {
     BTIF_TRACE_IMP("%s: QC", __func__);
@@ -535,30 +595,32 @@ bool btif_ahim_setup_codec(uint8_t profile) {
 }
 
 void btif_ahim_start_session(uint8_t profile) {
-  BTIF_TRACE_IMP("%s: start_session", __func__);
+  BTIF_TRACE_IMP("%s: start_session for profile: %d", __func__, profile);
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
     BTIF_TRACE_IMP("%s: AIDL, cur_active_profile: %d",
                              __func__, cur_active_profile);
     if (profile == A2DP) {
       return bluetooth::audio::aidl::a2dp::start_session();
-    } else if ((profile == AUDIO_GROUP_MGR) ||
-                (profile == BROADCAST)) {
+    } else if (profile == AUDIO_GROUP_MGR) {
       uint16_t profile_type =
                btif_ahim_get_lea_active_profile(profile);
       BTIF_TRACE_IMP("%s: AIDL, profile_type: %d", __func__, profile_type);
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-        if(sinkClientInterface)
-          sinkClientInterface->StartSession();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->StartSession();
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX) { // Toair and FromAir
-        if(sinkClientInterface)
-          sinkClientInterface->StartSession();
-        if(sourceClientInterface)
-          sourceClientInterface->StartSession();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->StartSession();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->StartSession();
       } else if(profile_type == WMCP) { // FromAir only
-        if(sourceClientInterface)
-          sourceClientInterface->StartSession();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->StartSession();
       }
+    } else if (profile == BROADCAST) {
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->StartSession();
     }
   } else if (btif_ahim_is_qc_hal_enabled()) {
     BTIF_TRACE_IMP("%s: QC Hal", __func__);
@@ -571,23 +633,25 @@ void btif_ahim_end_session(uint8_t profile) {
     BTIF_TRACE_IMP("%s: AIDL, profile: %d", __func__, profile);
     if (profile == A2DP) {
        return bluetooth::audio::aidl::a2dp::end_session();
-    } else if ((profile == AUDIO_GROUP_MGR) ||
-               (profile == BROADCAST)) {
+    } else if (profile == AUDIO_GROUP_MGR) {
       uint16_t profile_type =
                btif_ahim_get_lea_active_profile(profile);
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-        if(sinkClientInterface)
-          sinkClientInterface->StopSession();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->StopSession();
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX) { // Toair and FromAir
-        if(sinkClientInterface)
-          sinkClientInterface->StopSession();
-        if(sourceClientInterface)
-          sourceClientInterface->StopSession();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->StopSession();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->StopSession();
       } else if(profile_type == WMCP) { // FromAir only
-        if(sourceClientInterface)
-          sourceClientInterface->StopSession();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->StopSession();
       }
+    } else if (profile == BROADCAST) {
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->StopSession();
     }
   } else if (btif_ahim_is_qc_hal_enabled()) {
     BTIF_TRACE_IMP("%s: QC", __func__);
@@ -599,33 +663,35 @@ tA2DP_CTRL_CMD btif_ahim_get_pending_command(uint8_t profile) {
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
     if (profile == A2DP) {
        return bluetooth::audio::aidl::a2dp::GetPendingCmd();
-    } else if ((profile == AUDIO_GROUP_MGR) ||
-               (profile == BROADCAST)) {
+    } else if (profile == AUDIO_GROUP_MGR) {
       uint16_t profile_type =
                  btif_ahim_get_lea_active_profile(profile);
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-        if(sinkClientInterface)
-          return sinkClientInterface->GetPendingCmd();
+        if(unicastSinkClientInterface)
+          return unicastSinkClientInterface->GetPendingCmd();
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX) { // Toair and FromAir
         // TODO to return both or single one
-        if(sinkClientInterface) {
-          tA2DP_CTRL_CMD cmd = sinkClientInterface->GetPendingCmd();
+        if(unicastSinkClientInterface) {
+          tA2DP_CTRL_CMD cmd = unicastSinkClientInterface->GetPendingCmd();
           if(cmd != A2DP_CTRL_CMD_NONE) {
             return cmd;
           }
         }
-        if(sourceClientInterface) {
-          tA2DP_CTRL_CMD cmd = sourceClientInterface->GetPendingCmd();
+        if(unicastSourceClientInterface) {
+          tA2DP_CTRL_CMD cmd = unicastSourceClientInterface->GetPendingCmd();
           if(cmd != A2DP_CTRL_CMD_NONE) {
             return cmd;
           }
         }
         return A2DP_CTRL_CMD_NONE;
       } else if(profile_type == WMCP) { // FromAir only
-        if(sourceClientInterface)
-          return sourceClientInterface->GetPendingCmd();
+        if(unicastSourceClientInterface)
+          return unicastSourceClientInterface->GetPendingCmd();
       }
+    } else if (profile == BROADCAST) {
+        if (broadcastSinkClientInterface)
+          return broadcastSinkClientInterface->GetPendingCmd();
     }
   } else if (btif_ahim_is_qc_hal_enabled()) {
     return bluetooth::audio::a2dp::get_pending_command();
@@ -637,24 +703,26 @@ void btif_ahim_reset_pending_command(uint8_t profile) {
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
     if (profile == A2DP) {
        return bluetooth::audio::aidl::a2dp::ResetPendingCmd();
-    } else if ((profile == AUDIO_GROUP_MGR) ||
-               (profile == BROADCAST)) {
+    } else if (profile == AUDIO_GROUP_MGR) {
       uint16_t profile_type =
                      btif_ahim_get_lea_active_profile(profile);
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-        if(sinkClientInterface)
-          sinkClientInterface->ResetPendingCmd();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->ResetPendingCmd();
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX) { // Toair and FromAir
         // TODO to return both or single one
-        if(sinkClientInterface)
-          sinkClientInterface->ResetPendingCmd();
-        if(sourceClientInterface)
-          sourceClientInterface->ResetPendingCmd();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->ResetPendingCmd();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->ResetPendingCmd();
       } else if(profile_type == WMCP) { // FromAir only
-        if(sourceClientInterface)
-          sourceClientInterface->ResetPendingCmd();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->ResetPendingCmd();
       }
+    } else if (profile == BROADCAST) {
+      if (broadcastSinkClientInterface)
+        broadcastSinkClientInterface->ResetPendingCmd();
     }
   } else if (btif_ahim_is_qc_hal_enabled()) {
     if (cur_active_profile == profile) {
@@ -683,8 +751,7 @@ void btif_ahim_ack_stream_started(const tA2DP_CTRL_ACK& ack, uint8_t profile) {
     BTIF_TRACE_IMP("%s: AIDL", __func__);
     if (profile == A2DP) {
       return bluetooth::audio::aidl::a2dp::ack_stream_started(ack);
-    } else if ((profile == AUDIO_GROUP_MGR) ||
-               (profile == BROADCAST)) {
+    } else if (profile == AUDIO_GROUP_MGR) {
       uint16_t profile_type =
                btif_ahim_get_lea_active_profile(profile);
 
@@ -694,17 +761,28 @@ void btif_ahim_ack_stream_started(const tA2DP_CTRL_ACK& ack, uint8_t profile) {
       }
 
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-        if(sinkClientInterface)
-          sinkClientInterface->ConfirmStreamingRequest();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->ConfirmStreamingRequest();
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX) { // Toair and FromAir
-        if(sinkClientInterface)
-          sinkClientInterface->ConfirmStreamingRequest();
-        if(sourceClientInterface)
-          sourceClientInterface->ConfirmStreamingRequest();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->ConfirmStreamingRequest();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->ConfirmStreamingRequest();
       } else if(profile_type == WMCP) { // FromAir only
-        if(sourceClientInterface)
-          sourceClientInterface->ConfirmStreamingRequest();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->ConfirmStreamingRequest();
+      }
+    } else if (profile == BROADCAST) {
+      if (ack == A2DP_CTRL_ACK_SUCCESS) {
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->ConfirmStreamingRequest();
+      } else if (ack == A2DP_CTRL_ACK_PENDING) {
+        BTIF_TRACE_IMP("%s: Ignore Pending ACK", __func__);
+        return;
+      } else {
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->CancelStreamingRequest();
       }
     }
   } else if (btif_ahim_is_qc_hal_enabled()) {
@@ -727,8 +805,7 @@ void btif_ahim_ack_stream_profile_suspended(const tA2DP_CTRL_ACK& ack, uint8_t p
     BTIF_TRACE_IMP("%s: AIDL", __func__);
     if (profile == A2DP) {
       return bluetooth::audio::aidl::a2dp::ack_stream_suspended(ack);
-    } else if ((profile == AUDIO_GROUP_MGR) ||
-               (profile == BROADCAST)) {
+    } else if (profile == AUDIO_GROUP_MGR) {
      uint16_t profile_type;
       if(sub_profile) {
         profile_type = sub_profile;
@@ -738,17 +815,17 @@ void btif_ahim_ack_stream_profile_suspended(const tA2DP_CTRL_ACK& ack, uint8_t p
 
       if(ack == A2DP_CTRL_ACK_STREAM_SUSPENDED) {
         if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-          if(sinkClientInterface)
-            sinkClientInterface->CancelSuspendRequestWithReconfig();
+          if(unicastSinkClientInterface)
+            unicastSinkClientInterface->CancelSuspendRequestWithReconfig();
         } else if(profile_type == BAP_CALL ||
                   profile_type == GCP_RX) { // Toair and FromAir
-          if(sinkClientInterface)
-            sinkClientInterface->CancelSuspendRequestWithReconfig();
-          if(sourceClientInterface)
-            sourceClientInterface->CancelSuspendRequestWithReconfig();
+          if(unicastSinkClientInterface)
+            unicastSinkClientInterface->CancelSuspendRequestWithReconfig();
+          if(unicastSourceClientInterface)
+            unicastSourceClientInterface->CancelSuspendRequestWithReconfig();
         } else if(profile_type == WMCP) { // FromAir only
-          if(sourceClientInterface)
-            sourceClientInterface->CancelSuspendRequestWithReconfig();
+          if(unicastSourceClientInterface)
+            unicastSourceClientInterface->CancelSuspendRequestWithReconfig();
         }
         return;
       } else if (ack != A2DP_CTRL_ACK_SUCCESS) {
@@ -756,17 +833,31 @@ void btif_ahim_ack_stream_profile_suspended(const tA2DP_CTRL_ACK& ack, uint8_t p
         return;
       }
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-        if(sinkClientInterface)
-          sinkClientInterface->ConfirmSuspendRequest();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->ConfirmSuspendRequest();
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX) { // Toair and FromAir
-        if(sinkClientInterface)
-          sinkClientInterface->ConfirmSuspendRequest();
-        if(sourceClientInterface)
-          sourceClientInterface->ConfirmSuspendRequest();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->ConfirmSuspendRequest();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->ConfirmSuspendRequest();
       } else if(profile_type == WMCP) { // FromAir only
-        if(sourceClientInterface)
-          sourceClientInterface->ConfirmSuspendRequest();
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->ConfirmSuspendRequest();
+      }
+    } else if (profile == BROADCAST) {
+      if (ack == A2DP_CTRL_ACK_STREAM_SUSPENDED) {
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->CancelSuspendRequestWithReconfig();
+      } else if (ack == A2DP_CTRL_ACK_SUCCESS) {
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->ConfirmSuspendRequest();
+      } else if (ack == A2DP_CTRL_ACK_PENDING) {
+        BTIF_TRACE_IMP("%s: Ignore Pending ACK", __func__);
+        return;
+      } else {
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->CancelSuspendRequest();
       }
     }
   } else if (btif_ahim_is_qc_hal_enabled()) {
@@ -822,22 +913,26 @@ SessionType btif_ahim_get_session_type(uint8_t profile) {
            break;
        }
        return qc_hidl_session_type;
-     } else if ((profile == AUDIO_GROUP_MGR) ||
-               (profile == BROADCAST)) {
-      uint16_t profile_type =
+     } else if (profile == AUDIO_GROUP_MGR) {
+       uint16_t profile_type =
                btif_ahim_get_lea_active_profile(profile);
       BTIF_TRACE_IMP("%s: AIDL, profile_type: %d", __func__, profile_type);
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-        //sinkClientInterface->ConfirmSuspendRequest();
+        //unicastSinkClientInterface->ConfirmSuspendRequest();
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX) { // Toair and FromAir
-        //sinkClientInterface->ConfirmSuspendRequest();
-        //sourceClientInterface->ConfirmSuspendRequest();
-      } else if(profile_type == WMCP) { // FromAir only
-        //sourceClientInterface->ConfirmSuspendRequest();
-      }
-      return SessionType::A2DP_HARDWARE_OFFLOAD_DATAPATH;
-    }
+        //unicastSinkClientInterface->ConfirmSuspendRequest();
+        //unicastSourceClientInterface->ConfirmSuspendRequest();
+       } else if(profile_type == WMCP) { // FromAir only
+         //unicastSourceClientInterface->ConfirmSuspendRequest();
+       }
+       return SessionType::A2DP_HARDWARE_OFFLOAD_DATAPATH;
+     } else if (profile == BROADCAST) {
+       return SessionType::A2DP_HARDWARE_OFFLOAD_DATAPATH;
+       /* TODO
+       return SessionTypeAIDL::LE_AUDIO_BROADCAST_HARDWARE_OFFLOAD_ENCODING_DATAPATH;
+   */
+     }
   } else if (btif_ahim_is_qc_hal_enabled()) {
     return bluetooth::audio::a2dp::get_session_type();
   }

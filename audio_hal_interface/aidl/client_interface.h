@@ -76,6 +76,8 @@ using ::aidl::android::hardware::bluetooth::audio::IBluetoothAudioPort;
 using ::aidl::android::hardware::bluetooth::audio::IBluetoothAudioProvider;
 using ::aidl::android::hardware::bluetooth::audio::
     IBluetoothAudioProviderFactory;
+using ::aidl::android::hardware::bluetooth::audio::LeAudioBroadcastConfiguration;
+using ::aidl::android::hardware::bluetooth::audio::LeAudioCodecConfiguration;
 using ::aidl::android::hardware::bluetooth::audio::PcmConfiguration;
 
 using ::aidl::android::hardware::common::fmq::MQDescriptor;
