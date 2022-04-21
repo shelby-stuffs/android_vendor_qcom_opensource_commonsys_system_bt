@@ -114,21 +114,21 @@ LeAudioTransport::LeAudioTransport(void (*flush)(void),
 BluetoothAudioCtrlAck LeAudioTransport::StartRequest(bool is_low_latency) {
   LOG(INFO) << __func__;
 
-    BluetoothAudioCtrlAck status = BluetoothAudioCtrlAck::PENDING;
-    btif_ahim_process_request(A2DP_CTRL_CMD_START, AUDIO_GROUP_MGR);
-    lea_pending_cmd_ = A2DP_CTRL_CMD_START;
-    is_pending_start_request_ = true;
-    //return lea_ack_to_bt_audio_ctrl_ack(status);
-    return status;
+  BluetoothAudioCtrlAck status = BluetoothAudioCtrlAck::PENDING;
+  btif_ahim_process_request(A2DP_CTRL_CMD_START, AUDIO_GROUP_MGR);
+  lea_pending_cmd_ = A2DP_CTRL_CMD_START;
+  is_pending_start_request_ = true;
+  //return lea_ack_to_bt_audio_ctrl_ack(status);
+  return status;
 }
 
 BluetoothAudioCtrlAck LeAudioTransport::SuspendRequest() {
   LOG(INFO) << __func__;
-    BluetoothAudioCtrlAck status = BluetoothAudioCtrlAck::PENDING;
-    btif_ahim_process_request(A2DP_CTRL_CMD_SUSPEND, AUDIO_GROUP_MGR);
-    lea_pending_cmd_ = A2DP_CTRL_CMD_SUSPEND;     
-    //return lea_ack_to_bt_audio_ctrl_ack(status);
-    return status;
+  BluetoothAudioCtrlAck status = BluetoothAudioCtrlAck::PENDING;
+  btif_ahim_process_request(A2DP_CTRL_CMD_SUSPEND, AUDIO_GROUP_MGR);
+  lea_pending_cmd_ = A2DP_CTRL_CMD_SUSPEND;
+  //return lea_ack_to_bt_audio_ctrl_ack(status);
+  return status;
 }
 
 void LeAudioTransport::StopRequest() {

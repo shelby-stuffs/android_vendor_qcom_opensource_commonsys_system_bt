@@ -208,6 +208,8 @@ void btif_ahim_set_remote_delay(uint16_t delay_report, uint8_t profile);
 
 bool btif_ahim_is_streaming();
 
+void btif_ahim_signal_metadata_complete();
+
 SessionType btif_ahim_get_session_type(uint8_t profile);
 
 bool btif_ahim_update_codec_offloading_capabilities(

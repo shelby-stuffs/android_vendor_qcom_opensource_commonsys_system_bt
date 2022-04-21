@@ -86,6 +86,11 @@ using vendor::qti::hardware::bluetooth_audio::V2_1::LC3ChannelMode;
 LeAudioClientInterface* leAudioClientInterface = nullptr;
 LeAudioClientInterface::Sink* sinkClientInterface = nullptr;
 LeAudioClientInterface::Source* sourceClientInterface = nullptr;
+
+std::mutex metadata_wait_mutex_;
+std::condition_variable metadata_wait_cv;
+bool metadata_wait;
+
 #if AHIM_ENABLED
 
 uint8_t cur_active_profile = A2DP;
@@ -95,6 +100,17 @@ std::mutex active_profile_mtx;
 #define GCP_RX_PROFILE     0x20
 
 btif_ahim_client_callbacks_t* pclient_cbs[MAX_CLIENT] = {NULL};
+
+void btif_ahim_signal_metadata_complete() {
+  std::unique_lock<std::mutex> guard(metadata_wait_mutex_);
+  if(!metadata_wait) {
+    metadata_wait = true;
+    BTIF_TRACE_IMP("%s: singnalling", __func__);
+    metadata_wait_cv.notify_all();
+  } else {
+    BTIF_TRACE_WARNING("%s: already signalled ",__func__);
+  }
+}
 
 void reg_cb_with_ahim(uint8_t client_id,
                      btif_ahim_client_callbacks_t* pclient_cb)
@@ -173,20 +189,24 @@ void btif_ahim_process_request(tA2DP_CTRL_CMD cmd, uint8_t profile) {
 
 void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
   // pass on the callbacks to ACM only for new vendor
-  if(!btif_ahim_is_qc_hal_enabled()) {
+  if(btif_ahim_is_aosp_aidl_hal_enabled()) {
     BTIF_TRACE_IMP("%s: sending AIDL request to Audio Group Manager", __func__);
     if (pclient_cbs[AUDIO_GROUP_MGR - 1] &&
         pclient_cbs[AUDIO_GROUP_MGR - 1]->src_meta_update) {
       BTIF_TRACE_IMP("%s: calling call back for Audio Group Manager", __func__);
-      pclient_cbs[AUDIO_GROUP_MGR - 1]->
-          src_meta_update(source_metadata);
+      std::unique_lock<std::mutex> guard(metadata_wait_mutex_);
+      metadata_wait = false;
+      pclient_cbs[AUDIO_GROUP_MGR - 1]->src_meta_update(source_metadata);
+      metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(1000),
+                        []{return metadata_wait;});
+      BTIF_TRACE_IMP("%s: waiting completed", __func__);
     }
   }
 }
 
 void btif_ahim_update_sink_metadata (const sink_metadata_t& sink_metadata) {
   // pass on the callbacks to ACM only for new vendor
-  if(!btif_ahim_is_qc_hal_enabled()) {
+  if(btif_ahim_is_aosp_aidl_hal_enabled()) {
     BTIF_TRACE_IMP("%s: sending AIDL request to Audio Group Manager", __func__);
     if(pclient_cbs[AUDIO_GROUP_MGR - 1] &&
        pclient_cbs[AUDIO_GROUP_MGR - 1]->snk_meta_update) {
@@ -565,9 +585,19 @@ tA2DP_CTRL_CMD btif_ahim_get_pending_command(uint8_t profile) {
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX) { // Toair and FromAir
         // TODO to return both or single one
-        if(sinkClientInterface)
-          return sinkClientInterface->GetPendingCmd();
-        //sourceClientInterface->StopSession();
+        if(sinkClientInterface) {
+          tA2DP_CTRL_CMD cmd = sinkClientInterface->GetPendingCmd();
+          if(cmd != A2DP_CTRL_CMD_NONE) {
+            return cmd;
+          }
+        }
+        if(sourceClientInterface) {
+          tA2DP_CTRL_CMD cmd = sourceClientInterface->GetPendingCmd();
+          if(cmd != A2DP_CTRL_CMD_NONE) {
+            return cmd;
+          }
+        }
+        return A2DP_CTRL_CMD_NONE;
       } else if(profile_type == WMCP) { // FromAir only
         if(sourceClientInterface)
           return sourceClientInterface->GetPendingCmd();
