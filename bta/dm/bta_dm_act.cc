@@ -716,29 +716,27 @@ void bta_dm_disable(UNUSED_ATTR tBTA_DM_MSG* p_data) {
  *
  ******************************************************************************/
 static void bta_dm_disable_timer_cback(void* data) {
-  uint8_t i;
-  tBT_TRANSPORT transport = BT_TRANSPORT_BR_EDR;
   bool trigger_disc = false;
   uint32_t param = PTR_TO_UINT(data);
+  tACL_CONN* p = &btm_cb.acl_db[0];
+  uint16_t xx;
 
   APPL_TRACE_WARNING("%s trial %u", __func__, param);
 
   if (param == 2) {
     if (BTM_GetNumAclLinks()) {
-      for (i = 0; i < bta_dm_cb.device_list.count; i++) {
-        transport = bta_dm_cb.device_list.peer_device[i].transport;
-        if (BT_TRANSPORT_BR_EDR == transport) {
-          btm_remove_acl(bta_dm_cb.device_list.peer_device[i].peer_bdaddr,
-                  transport);
+      for (xx = 0; xx < MAX_L2CAP_LINKS; xx++, p++) {
+        if (p->in_use && (BT_TRANSPORT_BR_EDR ==  p->transport)) {
+          btm_remove_acl(p->remote_addr, p->transport);
         }
       }
     }
   }else if (BTM_GetNumAclLinks() && (param == 0)) {
-    for (i = 0; i < bta_dm_cb.device_list.count; i++) {
-      transport = bta_dm_cb.device_list.peer_device[i].transport;
-      btm_remove_acl(bta_dm_cb.device_list.peer_device[i].peer_bdaddr,
-                     transport);
-      trigger_disc = true;
+    trigger_disc = true;
+    for (xx = 0; xx < MAX_L2CAP_LINKS; xx++, p++) {
+      if (p->in_use) {
+        btm_remove_acl(p->remote_addr, p->transport);
+      }
     }
 
     /* Retrigger disable timer in case ACL disconnect failed, DISABLE_EVT still
