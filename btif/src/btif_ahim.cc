@@ -68,7 +68,6 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 #include "audio_hal_interface/aidl/le_audio_software.h"
 #include <hardware/audio.h>
 #include <vector>
-#include <btif_vmcp.h>
 
 
 using bluetooth::audio::aidl::le_audio::LeAudioClientInterface;
@@ -96,8 +95,12 @@ bool metadata_wait;
 uint8_t cur_active_profile = A2DP;
 std::mutex active_profile_mtx;
 
-#define WMCP_PROFILE       0x04
-#define GCP_RX_PROFILE     0x20
+#define BAP        0x01
+#define GCP        0x02
+#define WMCP       0x04
+#define VMCP       0x08
+#define BAP_CALL   0x10
+#define GCP_RX     0x20
 
 btif_ahim_client_callbacks_t* pclient_cbs[MAX_CLIENT] = {NULL};
 
