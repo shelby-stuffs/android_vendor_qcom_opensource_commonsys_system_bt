@@ -202,13 +202,19 @@ void btif_ahim_ack_stream_started(const tA2DP_CTRL_ACK& ack, uint8_t profile);
 
 void btif_ahim_ack_stream_suspended(const tA2DP_CTRL_ACK& ack, uint8_t profile);
 
+void btif_ahim_ack_stream_profile_suspended(const tA2DP_CTRL_ACK& ack,
+                                           uint8_t profile,
+                                           uint16_t sub_profile);
+
 size_t btif_ahim_read(uint8_t* p_buf, uint32_t len);
 
 void btif_ahim_set_remote_delay(uint16_t delay_report, uint8_t profile);
 
 bool btif_ahim_is_streaming();
 
-void btif_ahim_signal_metadata_complete();
+void btif_ahim_signal_src_metadata_complete();
+
+void btif_ahim_signal_snk_metadata_complete();
 
 SessionType btif_ahim_get_session_type(uint8_t profile);
 

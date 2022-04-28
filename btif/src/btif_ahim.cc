@@ -86,9 +86,14 @@ LeAudioClientInterface* leAudioClientInterface = nullptr;
 LeAudioClientInterface::Sink* sinkClientInterface = nullptr;
 LeAudioClientInterface::Source* sourceClientInterface = nullptr;
 
-std::mutex metadata_wait_mutex_;
-std::condition_variable metadata_wait_cv;
-bool metadata_wait;
+std::mutex src_metadata_wait_mutex_;
+std::condition_variable src_metadata_wait_cv;
+bool src_metadata_wait;
+
+std::mutex snk_metadata_wait_mutex_;
+std::condition_variable snk_metadata_wait_cv;
+bool snk_metadata_wait;
+
 
 #if AHIM_ENABLED
 
@@ -104,12 +109,23 @@ std::mutex active_profile_mtx;
 
 btif_ahim_client_callbacks_t* pclient_cbs[MAX_CLIENT] = {NULL};
 
-void btif_ahim_signal_metadata_complete() {
-  std::unique_lock<std::mutex> guard(metadata_wait_mutex_);
-  if(!metadata_wait) {
-    metadata_wait = true;
+void btif_ahim_signal_src_metadata_complete() {
+  std::unique_lock<std::mutex> guard(src_metadata_wait_mutex_);
+  if(!src_metadata_wait) {
+    src_metadata_wait = true;
     BTIF_TRACE_IMP("%s: singnalling", __func__);
-    metadata_wait_cv.notify_all();
+    src_metadata_wait_cv.notify_all();
+  } else {
+    BTIF_TRACE_WARNING("%s: already signalled ",__func__);
+  }
+}
+
+void btif_ahim_signal_snk_metadata_complete() {
+  std::unique_lock<std::mutex> guard(snk_metadata_wait_mutex_);
+  if(!snk_metadata_wait) {
+    snk_metadata_wait = true;
+    BTIF_TRACE_IMP("%s: singnalling", __func__);
+    snk_metadata_wait_cv.notify_all();
   } else {
     BTIF_TRACE_WARNING("%s: already signalled ",__func__);
   }
@@ -197,12 +213,12 @@ void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
     if (pclient_cbs[AUDIO_GROUP_MGR - 1] &&
         pclient_cbs[AUDIO_GROUP_MGR - 1]->src_meta_update) {
       BTIF_TRACE_IMP("%s: calling call back for Audio Group Manager", __func__);
-      std::unique_lock<std::mutex> guard(metadata_wait_mutex_);
-      metadata_wait = false;
+      std::unique_lock<std::mutex> guard(src_metadata_wait_mutex_);
+      src_metadata_wait = false;
       pclient_cbs[AUDIO_GROUP_MGR - 1]->src_meta_update(source_metadata);
-      metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(1000),
-                        []{return metadata_wait;});
-      BTIF_TRACE_IMP("%s: waiting completed", __func__);
+      src_metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(1000),
+                        []{return src_metadata_wait;});
+      BTIF_TRACE_IMP("%s: src waiting completed", __func__);
     }
   }
 }
@@ -214,8 +230,12 @@ void btif_ahim_update_sink_metadata (const sink_metadata_t& sink_metadata) {
     if(pclient_cbs[AUDIO_GROUP_MGR - 1] &&
        pclient_cbs[AUDIO_GROUP_MGR - 1]->snk_meta_update) {
       BTIF_TRACE_IMP("%s: calling call back for Audio Group Manager", __func__);
-      pclient_cbs[AUDIO_GROUP_MGR - 1]->
-          snk_meta_update(sink_metadata);
+      std::unique_lock<std::mutex> guard(snk_metadata_wait_mutex_);
+      snk_metadata_wait = false;
+      pclient_cbs[AUDIO_GROUP_MGR - 1]->snk_meta_update(sink_metadata);
+      snk_metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(1000),
+                        []{return snk_metadata_wait;});
+      BTIF_TRACE_IMP("%s: snk waiting completed", __func__);
     }
   }
 }
@@ -697,14 +717,23 @@ void btif_ahim_ack_stream_started(const tA2DP_CTRL_ACK& ack, uint8_t profile) {
 }
 
 void btif_ahim_ack_stream_suspended(const tA2DP_CTRL_ACK& ack, uint8_t profile) {
+  btif_ahim_ack_stream_profile_suspended(ack, profile, 0);
+}
+
+void btif_ahim_ack_stream_profile_suspended(const tA2DP_CTRL_ACK& ack, uint8_t profile,
+                                    uint16_t sub_profile) {
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
     BTIF_TRACE_IMP("%s: AIDL", __func__);
     if (profile == A2DP) {
       return bluetooth::audio::aidl::a2dp::ack_stream_suspended(ack);
     } else if ((profile == AUDIO_GROUP_MGR) ||
                (profile == BROADCAST)) {
-      uint16_t profile_type =
-               btif_ahim_get_lea_active_profile(profile);
+     uint16_t profile_type;
+      if(sub_profile) {
+        profile_type = sub_profile;
+      } else {
+        profile_type = btif_ahim_get_lea_active_profile(profile);
+      }
 
       if(ack == A2DP_CTRL_ACK_STREAM_SUSPENDED) {
         if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
