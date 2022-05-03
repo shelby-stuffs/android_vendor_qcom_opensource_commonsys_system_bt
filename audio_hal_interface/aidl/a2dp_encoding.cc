@@ -107,6 +107,8 @@ tA2DP_CTRL_CMD A2dpTransport::a2dp_pending_cmd_ = A2DP_CTRL_CMD_NONE;
 uint16_t A2dpTransport::remote_delay_report_ = 0;
 CodecConfiguration codec_config_global;
 PcmConfiguration pcm_config_global;
+static bool is_aidl_checked = false;
+static bool is_aidl_available = false;
 
 
 
@@ -420,7 +422,12 @@ bool is_hal_enabled() { return active_hal_interface != nullptr; }
 
 // Checking if new bluetooth_audio is enabled
 bool is_aidl_hal_available() {
-  return BluetoothAudioClientInterface::is_aidl_available();
+  if (is_aidl_checked) return is_aidl_available;
+
+  is_aidl_available = BluetoothAudioClientInterface::is_aidl_available();
+  is_aidl_checked = true;
+  LOG(INFO) << __func__ << ": " << is_aidl_available;
+  return is_aidl_available;
 }
 
 // Check if new bluetooth_audio is running with offloading encoders
