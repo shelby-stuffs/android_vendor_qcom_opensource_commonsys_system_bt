@@ -2241,6 +2241,11 @@ void bta_dm_search_cmpl(tBTA_DM_MSG* p_data) {
     bta_dm_di_disc_cmpl(p_data);
   else
     bta_dm_search_cb.p_search_cback(BTA_DM_DISC_CMPL_EVT, NULL);
+  if (bta_dm_search_cb.p_search_queue) {
+   APPL_TRACE_API("search queue is not empty ");
+   bta_sys_sendmsg(bta_dm_search_cb.p_search_queue);
+   bta_dm_search_cb.p_search_queue = NULL;
+  }
   BTA_DmProcessQueuedServiceDiscovery();
 }
 
