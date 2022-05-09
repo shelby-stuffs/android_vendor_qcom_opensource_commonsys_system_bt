@@ -355,7 +355,7 @@ class A2dpTransport_2_1 : public ::bluetooth::audio::IBluetoothTransportInstance
   tA2DP_CTRL_ACK ProcessRequest(tA2DP_CTRL_CMD cmd) {
     ack_status = A2DP_CTRL_ACK_PENDING;
 #if AHIM_ENABLED
-    btif_ahim_process_request(cmd, A2DP);
+    btif_ahim_process_request(cmd, A2DP, TO_AIR);
 #else
     btif_dispatch_sm_event(BTIF_AV_PROCESS_HIDL_REQ_EVT, (char*)&cmd,
                           sizeof(cmd));

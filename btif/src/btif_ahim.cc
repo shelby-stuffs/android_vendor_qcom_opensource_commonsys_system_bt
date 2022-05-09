@@ -169,7 +169,8 @@ void btif_ahim_update_current_profile(uint8_t profile)
   BTIF_TRACE_IMP("%s: current active profile is %u", __func__,
                   cur_active_profile);
 }
-void btif_ahim_process_request(tA2DP_CTRL_CMD cmd, uint8_t profile) {
+void btif_ahim_process_request(tA2DP_CTRL_CMD cmd, uint8_t profile, 
+                               uint8_t direction) {
   std::lock_guard<std::mutex> lock(active_profile_mtx);
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
     cur_active_profile = profile;
@@ -187,7 +188,7 @@ void btif_ahim_process_request(tA2DP_CTRL_CMD cmd, uint8_t profile) {
           pclient_cbs[cur_active_profile - 1]->client_cb) {
         BTIF_TRACE_IMP("%s: calling call back for Audio Group Manager",
                        __func__);
-        pclient_cbs[cur_active_profile - 1]->client_cb(cmd);
+        pclient_cbs[cur_active_profile - 1]->client_cb(cmd, direction);
       }
       else
         BTIF_TRACE_ERROR("%s, Audio Group Manager is not registered with AHIM",
@@ -198,7 +199,7 @@ void btif_ahim_process_request(tA2DP_CTRL_CMD cmd, uint8_t profile) {
       if (pclient_cbs[cur_active_profile - 1] &&
           pclient_cbs[cur_active_profile - 1]->client_cb) {
         BTIF_TRACE_IMP("%s: calling call back for BROADCAST", __func__);
-        pclient_cbs[cur_active_profile - 1]->client_cb(cmd);
+        pclient_cbs[cur_active_profile - 1]->client_cb(cmd, direction);
       }
       else
         BTIF_TRACE_ERROR("%s, BROADCAST is not registered with AHIM", __func__);
@@ -216,7 +217,7 @@ void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
       std::unique_lock<std::mutex> guard(src_metadata_wait_mutex_);
       src_metadata_wait = false;
       pclient_cbs[AUDIO_GROUP_MGR - 1]->src_meta_update(source_metadata);
-      src_metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(1000),
+      src_metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(100),
                         []{return src_metadata_wait;});
       BTIF_TRACE_IMP("%s: src waiting completed", __func__);
     }
@@ -233,7 +234,7 @@ void btif_ahim_update_sink_metadata (const sink_metadata_t& sink_metadata) {
       std::unique_lock<std::mutex> guard(snk_metadata_wait_mutex_);
       snk_metadata_wait = false;
       pclient_cbs[AUDIO_GROUP_MGR - 1]->snk_meta_update(sink_metadata);
-      snk_metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(1000),
+      snk_metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(100),
                         []{return snk_metadata_wait;});
       BTIF_TRACE_IMP("%s: snk waiting completed", __func__);
     }
@@ -509,7 +510,7 @@ bool btif_ahim_setup_codec(uint8_t profile) {
           sinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
 
         if (!leAudio_get_selected_hal_codec_config(&lea_rx_config, profile,
-                                                    RX_ONLY_CONFIG)) {
+                                                    TX_RX_BOTH_CONFIG)) {
           LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
           return false;
         }
