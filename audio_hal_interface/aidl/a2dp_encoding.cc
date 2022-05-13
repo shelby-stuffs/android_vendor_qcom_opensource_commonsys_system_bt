@@ -617,6 +617,9 @@ void end_session() {
 void ack_stream_started(const tA2DP_CTRL_ACK& ack) {
   auto ctrl_ack = a2dp_ack_to_bt_audio_ctrl_ack(ack);
   LOG(INFO) << __func__ << "aidl: result=" << ctrl_ack;
+
+  if (active_hal_interface == nullptr) return;
+
   auto a2dp_sink =
       static_cast<A2dpTransport*>(active_hal_interface->GetTransportInstance());
   auto pending_cmd = a2dp_sink->GetPendingCmd();
@@ -635,6 +638,9 @@ void ack_stream_started(const tA2DP_CTRL_ACK& ack) {
 void ack_stream_suspended(const tA2DP_CTRL_ACK& ack) {
   auto ctrl_ack = a2dp_ack_to_bt_audio_ctrl_ack(ack);
   LOG(INFO) << __func__ << "aidl: result=" << ctrl_ack;
+
+  if (active_hal_interface == nullptr) return;
+
   auto a2dp_sink =
       static_cast<A2dpTransport*>(active_hal_interface->GetTransportInstance());
   auto pending_cmd = a2dp_sink->GetPendingCmd();
