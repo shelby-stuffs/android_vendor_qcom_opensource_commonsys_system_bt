@@ -337,14 +337,18 @@ static void parse_qll_read_local_supported_features_response(
   uint8_t* stream = read_command_complete_header(
                 response, HCI_VS_QBCE_OCF,
        9 /* bytes after */);
-   CHECK(stream != NULL);
 
-   uint8_t sub_opcode;
-   STREAM_TO_UINT8(sub_opcode, stream);
-   CHECK(sub_opcode == QBCE_READ_LOCAL_QLL_SUPPORTED_FEATURES);
-   STREAM_TO_ARRAY(supported_features->as_array, stream,
-                  (int)sizeof(bt_device_qll_local_supported_features_t));
-
+   if (stream) {
+     uint8_t sub_opcode;
+     STREAM_TO_UINT8(sub_opcode, stream);
+     if (sub_opcode == QBCE_READ_LOCAL_QLL_SUPPORTED_FEATURES)
+     {
+       STREAM_TO_ARRAY(supported_features->as_array, stream,
+                (int)sizeof(bt_device_qll_local_supported_features_t));
+     }
+   } else {
+     LOG_ERROR(LOG_TAG, "%s: stream null check cmnd status reason", __func__);
+   }
    buffer_allocator->free(response);
 }
 
