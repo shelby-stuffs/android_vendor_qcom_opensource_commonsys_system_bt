@@ -111,29 +111,28 @@ LeAudioTransport::LeAudioTransport(void (*flush)(void),
       pcm_config_(std::move(pcm_config)),
       is_pending_start_request_(false){};
 
-BluetoothAudioCtrlAck LeAudioTransport::StartRequest(bool is_low_latency) {
+BluetoothAudioCtrlAck LeAudioTransport::StartRequest(bool is_low_latency,
+                                                     uint8_t direction) {
   LOG(INFO) << __func__;
 
   BluetoothAudioCtrlAck status = BluetoothAudioCtrlAck::PENDING;
-  btif_ahim_process_request(A2DP_CTRL_CMD_START, AUDIO_GROUP_MGR);
+  btif_ahim_process_request(A2DP_CTRL_CMD_START, AUDIO_GROUP_MGR, direction);
   lea_pending_cmd_ = A2DP_CTRL_CMD_START;
   is_pending_start_request_ = true;
-  //return lea_ack_to_bt_audio_ctrl_ack(status);
   return status;
 }
 
-BluetoothAudioCtrlAck LeAudioTransport::SuspendRequest() {
+BluetoothAudioCtrlAck LeAudioTransport::SuspendRequest(uint8_t direction) {
   LOG(INFO) << __func__;
   BluetoothAudioCtrlAck status = BluetoothAudioCtrlAck::PENDING;
-  btif_ahim_process_request(A2DP_CTRL_CMD_SUSPEND, AUDIO_GROUP_MGR);
+  btif_ahim_process_request(A2DP_CTRL_CMD_SUSPEND, AUDIO_GROUP_MGR, direction);
   lea_pending_cmd_ = A2DP_CTRL_CMD_SUSPEND;
-  //return lea_ack_to_bt_audio_ctrl_ack(status);
   return status;
 }
 
-void LeAudioTransport::StopRequest() {
+void LeAudioTransport::StopRequest(uint8_t direction) {
   LOG(INFO) << __func__;
-  btif_ahim_process_request(A2DP_CTRL_CMD_STOP, AUDIO_GROUP_MGR);
+  btif_ahim_process_request(A2DP_CTRL_CMD_STOP, AUDIO_GROUP_MGR, direction);
 }
 
 bool LeAudioTransport::GetPresentationPosition(uint64_t* remote_delay_report_ns,
@@ -240,14 +239,14 @@ LeAudioSinkTransport::LeAudioSinkTransport(SessionType session_type,
 LeAudioSinkTransport::~LeAudioSinkTransport() { delete transport_; }
 
 BluetoothAudioCtrlAck LeAudioSinkTransport::StartRequest(bool is_low_latency) {
-  return transport_->StartRequest(is_low_latency);
+  return transport_->StartRequest(is_low_latency, TO_AIR);
 }
 
 BluetoothAudioCtrlAck LeAudioSinkTransport::SuspendRequest() {
-  return transport_->SuspendRequest();
+  return transport_->SuspendRequest(TO_AIR);
 }
 
-void LeAudioSinkTransport::StopRequest() { transport_->StopRequest(); }
+void LeAudioSinkTransport::StopRequest() { transport_->StopRequest(TO_AIR); }
 
 bool LeAudioSinkTransport::GetPresentationPosition(
     uint64_t* remote_delay_report_ns, uint64_t* total_bytes_read,
@@ -321,14 +320,14 @@ LeAudioSourceTransport::~LeAudioSourceTransport() { delete transport_; }
 
 BluetoothAudioCtrlAck LeAudioSourceTransport::StartRequest(
     bool is_low_latency) {
-  return transport_->StartRequest(is_low_latency);
+  return transport_->StartRequest(is_low_latency, FROM_AIR);
 }
 
 BluetoothAudioCtrlAck LeAudioSourceTransport::SuspendRequest() {
-  return transport_->SuspendRequest();
+  return transport_->SuspendRequest(FROM_AIR);
 }
 
-void LeAudioSourceTransport::StopRequest() { transport_->StopRequest(); }
+void LeAudioSourceTransport::StopRequest() { transport_->StopRequest(FROM_AIR); }
 
 bool LeAudioSourceTransport::GetPresentationPosition(
     uint64_t* remote_delay_report_ns, uint64_t* total_bytes_written,

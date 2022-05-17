@@ -103,11 +103,11 @@ class LeAudioTransport {
   LeAudioTransport(void (*flush)(void), StreamCallbacks stream_cb,
                    PcmConfiguration pcm_config);
 
-  BluetoothAudioCtrlAck StartRequest(bool is_low_latency);
+  BluetoothAudioCtrlAck StartRequest(bool is_low_latency, uint8_t direction);
 
-  BluetoothAudioCtrlAck SuspendRequest();
+  BluetoothAudioCtrlAck SuspendRequest(uint8_t direction);
 
-  void StopRequest();
+  void StopRequest(uint8_t direction);
 
   bool GetPresentationPosition(uint64_t* remote_delay_report_ns,
                                uint64_t* total_bytes_processed,
