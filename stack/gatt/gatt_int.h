@@ -770,4 +770,7 @@ extern void gatt_notify_eatt_congestion(tGATT_TCB* p_tcb, uint16_t cid, bool con
 extern Octet16 gatts_calculate_database_hash(
     std::list<tGATT_SRV_LIST_ELEM>* lst_ptr);
 
+// Saves DB hash
+extern void gatt_save_cl_db_hash(tGATT_TCB tcb);
+
 #endif
