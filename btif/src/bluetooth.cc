@@ -527,6 +527,43 @@ static bool allow_low_latency_audio(bool allowed, const RawAddress& address) {
   return false;
 }
 
+// KEYSTONE(Ic24dd31c55ee70bfaf056728795d388aead1efb6,b/235138102)
+static int clear_event_mask() {
+  LOG_VERBOSE(LOG_TAG, "%s", __func__);
+  return BT_STATUS_SUCCESS;
+}
+
+static int clear_filter_accept_list() {
+  LOG_VERBOSE(LOG_TAG, "%s", __func__);
+  return BT_STATUS_SUCCESS;
+}
+
+static int disconnect_all_acls() {
+  LOG_VERBOSE(LOG_TAG, "%s", __func__);
+  return BT_STATUS_SUCCESS;
+}
+
+static void le_rand_btif_cb(uint64_t random_number) {
+  LOG_VERBOSE(LOG_TAG, "%s", __func__);
+}
+
+static int le_rand() {
+  LOG_VERBOSE(LOG_TAG, "%s", __func__);
+  return BT_STATUS_SUCCESS;
+}
+
+static int set_event_filter_inquiry_result_all_devices() {
+  return BT_STATUS_SUCCESS;
+}
+
+static int set_default_event_mask() {
+  return BT_STATUS_SUCCESS;
+}
+
+static int restore_filter_accept_list() {
+  return BT_STATUS_SUCCESS;
+}
+
 EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     sizeof(bluetoothInterface),
     init,
@@ -568,6 +605,13 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     generate_local_oob_data,
     allow_low_latency_audio,
     clear_event_filter,
+    clear_event_mask,
+    clear_filter_accept_list,
+    disconnect_all_acls,
+    le_rand,
+    restore_filter_accept_list,
+    set_default_event_mask,
+    set_event_filter_inquiry_result_all_devices,
 };
 
 void invoke_oob_data_request_cb(tBT_TRANSPORT t, bool valid, Octet16 c,
