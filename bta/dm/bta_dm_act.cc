@@ -1086,6 +1086,8 @@ void bta_dm_remove_device(tBTA_DM_MSG* p_data) {
 
 
         btm_remove_acl(other_address, peer_device.transport);
+        APPL_TRACE_DEBUG("%s: continue to delete the other dev after acl removing ", __func__);
+        continue_delete_other_dev = true;
         break;
       }
     }
