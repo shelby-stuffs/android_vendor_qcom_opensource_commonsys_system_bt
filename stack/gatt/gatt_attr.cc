@@ -1350,7 +1350,8 @@ static tGATT_STATUS gatt_sr_write_cl_supp_feat(uint16_t conn_id,
   // get current robust caching status before setting new one
   bool curr_caching_state = gatt_sr_is_cl_robust_caching_supported(tcb);
 
-  tcb.cl_supp_feat = tmp.front();
+  //Client supp feat char has valid values that can be set in bits 0,1,2
+  tcb.cl_supp_feat = (tmp.front() & 0x07);
   if (!gatt_sr_is_robust_caching_enabled()) {
     // remove robust caching bit
     tcb.cl_supp_feat &= ~BLE_GATT_CL_SUP_FEAT_CACHING_BITMASK;

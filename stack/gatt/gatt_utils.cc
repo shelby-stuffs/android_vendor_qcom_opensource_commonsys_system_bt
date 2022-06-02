@@ -536,7 +536,7 @@ tGATT_TCB* gatt_allocate_tcb_by_bdaddr(const RawAddress& bda,
     p_tcb->transport = transport;
     p_tcb->peer_bda = bda;
     gatt_sr_init_cl_status(*p_tcb);
-
+    p_tcb->is_db_out_of_sync_sent = false;
     return p_tcb;
   }
 

@@ -353,6 +353,9 @@ typedef struct {
   bool is_conn_cb_sent_eatt_sr_apps;
   std::vector<tGATT_IF> sr_eatt_apps;
   bool is_att_rsp_tout;
+
+  uint8_t svc_chg_cccd;
+  bool is_db_out_of_sync_sent;
 } tGATT_TCB;
 
 typedef struct {
