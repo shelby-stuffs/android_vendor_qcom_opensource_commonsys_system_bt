@@ -2614,6 +2614,7 @@ void btm_ble_update_inq_result(tINQ_DB_ENT* p_i, uint8_t addr_type,
             p_cur->dev_class[0] = 0;
             p_cur->dev_class[1] = BTM_COD_MAJOR_ADV_AUDIO;
             p_cur->dev_class[2] = 0;
+            p_cur->is_adv_audio = true;
             break;
           }
         }
