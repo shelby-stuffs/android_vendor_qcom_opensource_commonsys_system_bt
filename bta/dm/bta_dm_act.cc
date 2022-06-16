@@ -5798,6 +5798,8 @@ static void bta_dm_gattc_callback(tBTA_GATTC_EVT event, tBTA_GATTC* p_data) {
           }
         } else {
           APPL_TRACE_DEBUG("%s Discovery Failure ", __func__);
+          if (is_remote_support_adv_audio(bta_dm_search_cb.peer_bdaddr))
+            bta_le_audio_service_search_failed(&bta_dm_search_cb.peer_bdaddr);
         }
 #endif
       }
