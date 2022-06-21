@@ -874,11 +874,22 @@ void btif_ahim_ack_stream_started(const tA2DP_CTRL_ACK& ack, uint8_t profile) {
       uint16_t profile_type =
                btif_ahim_get_lea_active_profile(profile);
 
-      if (ack != A2DP_CTRL_ACK_SUCCESS) {
+      if (ack != A2DP_CTRL_ACK_SUCCESS && ack != A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS) {
         BTIF_TRACE_IMP("%s: Ack is not success yet, return", __func__);
         return;
       }
-
+      if (ack == A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS) {
+        if (profile_type == BAP || profile_type == GCP ||
+          profile_type == BAP_CALL || profile_type == GCP_RX) {
+          if(unicastSinkClientInterface)
+            unicastSinkClientInterface->CancelStreamingRequest();
+        }
+        if (profile_type == BAP_CALL || profile_type == GCP_RX ||
+          profile_type == WMCP) {
+          if(unicastSourceClientInterface)
+            unicastSourceClientInterface->CancelStreamingRequest();
+        }
+      }
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
         if(unicastSinkClientInterface)
           unicastSinkClientInterface->ConfirmStreamingRequest();
@@ -945,6 +956,18 @@ void btif_ahim_ack_stream_profile_suspended(const tA2DP_CTRL_ACK& ack, uint8_t p
         } else if(profile_type == WMCP) { // FromAir only
           if(unicastSourceClientInterface)
             unicastSourceClientInterface->CancelSuspendRequestWithReconfig();
+        }
+        return;
+      } else if (ack == A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS) {
+        if(profile_type == BAP || profile_type == GCP ||
+          profile_type == BAP_CALL || profile_type == GCP_RX) {
+          if(unicastSinkClientInterface)
+            unicastSinkClientInterface->CancelSuspendRequest();
+        }
+        if (profile_type == BAP_CALL || profile_type == GCP_RX ||
+          profile_type == WMCP) {
+          if(unicastSourceClientInterface)
+            unicastSourceClientInterface->CancelSuspendRequest();
         }
         return;
       } else if (ack != A2DP_CTRL_ACK_SUCCESS) {
