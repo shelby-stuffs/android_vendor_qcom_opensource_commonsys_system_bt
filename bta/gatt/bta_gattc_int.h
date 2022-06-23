@@ -242,6 +242,7 @@ typedef struct {
 
 typedef struct {
   bool in_use;
+  bool app_disconnected;
   RawAddress remote_bda;
   uint16_t handle;
 } tBTA_GATTC_NOTIF_REG;
