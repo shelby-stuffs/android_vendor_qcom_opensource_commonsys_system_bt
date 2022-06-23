@@ -5129,7 +5129,7 @@ static uint8_t bta_dm_ble_smp_cback(tBTM_LE_EVT event, const RawAddress& bda,
 
       } else {
         sec_event.auth_cmpl.success = true;
-
+        sec_event.auth_cmpl.fail_reason = HCI_SUCCESS;
         sec_event.auth_cmpl.smp_over_br = p_data->complt.smp_over_br;
         if (!p_data->complt.smp_over_br)
           GATT_ConfigServiceChangeCCC(bda, true, BT_TRANSPORT_LE);
