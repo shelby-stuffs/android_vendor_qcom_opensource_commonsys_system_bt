@@ -536,7 +536,7 @@ void write_char_cb(uint16_t conn_id, tGATT_STATUS status, uint16_t handle,
   std::vector<uint8_t> val(value, value + len);
   CLI_CBACK_WRAP_IN_JNI(
       write_characteristic_cb,
-      base::BindOnce(
+      base::Bind(
           [](write_characteristic_callback cb, uint16_t conn_id,
              tGATT_STATUS status, uint16_t handle,
              std::vector<uint8_t> moved_value) {
@@ -566,7 +566,7 @@ void write_descr_cb(uint16_t conn_id, tGATT_STATUS status, uint16_t handle,
 
   CLI_CBACK_WRAP_IN_JNI(
       write_descriptor_cb,
-      base::BindOnce(
+      base::Bind(
           [](write_descriptor_callback cb, uint16_t conn_id,
              tGATT_STATUS status, uint16_t handle,
              std::vector<uint8_t> moved_value) {
