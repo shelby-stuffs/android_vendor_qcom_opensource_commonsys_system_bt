@@ -769,7 +769,13 @@ void bta_gattc_set_discover_st(tBTA_GATTC_SERV* p_srcb) {
   for (i = 0; i < BTA_GATTC_CLCB_MAX; i++) {
     if (bta_gattc_cb.clcb[i].p_srcb == p_srcb) {
       bta_gattc_cb.clcb[i].status = GATT_SUCCESS;
-      bta_gattc_cb.clcb[i].state = BTA_GATTC_DISCOVER_ST;
+      if (p_srcb->srvc_hdl_db_hash &&
+          (bta_gattc_cb.clcb[i].state == BTA_GATTC_W4_CONN_ST)) {
+        bta_gattc_cb.clcb[i].state = BTA_GATTC_DISCOVER_ST_RC;
+      }
+      else {
+        bta_gattc_cb.clcb[i].state = BTA_GATTC_DISCOVER_ST;
+      }
       bta_gattc_cb.clcb[i].request_during_discovery =
           BTA_GATTC_DISCOVER_REQ_NONE;
     }
