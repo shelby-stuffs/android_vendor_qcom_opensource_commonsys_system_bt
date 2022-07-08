@@ -778,7 +778,7 @@ void bta_av_co_audio_setconfig(tBTA_AV_HNDL hndl, const uint8_t* p_codec_info,
 
     if (t_local_sep == AVDT_TSEP_SNK) {
       APPL_TRACE_DEBUG("%s: peer is A2DP SRC", __func__);
-      codec_config_supported = A2DP_IsSinkCodecSupported(p_codec_info);
+      codec_config_supported = A2DP_IsPeerSourceCodecSupported(p_codec_info);
       if (codec_config_supported) {
         // If Peer is SRC, and our config subset matches with what is
         // requested by peer, then just accept what peer wants.
@@ -1244,14 +1244,23 @@ static const tBTA_AV_CO_SINK* bta_av_co_find_peer_src_supports_codec(
     const tBTA_AV_CO_PEER* p_peer) {
   APPL_TRACE_DEBUG("%s: peer num_sup_srcs = %d", __func__,
                    p_peer->num_sup_srcs);
-
-  for (size_t index = 0; index < p_peer->num_sup_srcs; index++) {
-    const uint8_t* p_codec_caps = p_peer->srcs[index].codec_caps;
-    if (A2DP_CodecTypeEquals(bta_av_co_cb.codec_config, p_codec_caps) &&
-        A2DP_IsPeerSourceCodecSupported(p_codec_caps)) {
-      return &p_peer->srcs[index];
-    }
-  }
+/*Select Peer Source supported codec as per local Sink order*/
+ for (const auto& iter : p_peer->codecs->orderedSinkCodecs()) {
+	    APPL_TRACE_DEBUG("%s: trying codec %s", __func__, iter->name().c_str());
+		 for (size_t index = 0; index < p_peer->num_sup_srcs; index++) {
+			 const uint8_t* p_codec_caps = p_peer->srcs[index].codec_caps;
+			  btav_a2dp_codec_index_t peer_codec_index =
+			  A2DP_SinkCodecIndex(p_peer->srcs[index].codec_caps);
+			    APPL_TRACE_DEBUG("%s ind: %d, peer_codec_index : %d :: codec_config.codecIndex() : %d",
+                         __func__, index, peer_codec_index, iter->codecIndex());
+        if (peer_codec_index != iter->codecIndex()) {
+            continue;
+        }
+        if (A2DP_IsPeerSourceCodecSupported(p_codec_caps)) {
+          return &p_peer->srcs[index];
+        }
+		 }
+ }
   return NULL;
 }
 
@@ -2216,6 +2225,7 @@ void bta_av_co_init(
   RawAddress bt_addr;
   const char *a2dp_ofload_cap = controller_get_interface()->get_a2dp_offload_cap();
   tBTA_AV_CO_PEER* p_peer;
+  char value[PROPERTY_VALUE_MAX] = {'\0'};
   /* Protect access to bta_av_co_cb.codec_config */
   mutex_global_lock();
   /* Reset the control block */
@@ -2227,13 +2237,19 @@ void bta_av_co_init(
   bta_av_co_cp_set_flag(AVDT_CP_SCMS_COPY_FREE);
 #endif
 
+  /*A2DP Sink codecs*/
+  osi_property_get("persist.vendor.bluetooth.a2dp_sink_cap", value, "sbc");
+  A2DP_SetSinkCodec(value);
+  /*A2DP Sink codecs*/
+
 /* SPLITA2DP */
   bool a2dp_offload = btif_av_is_split_a2dp_enabled();
   bool isScramblingSupported = bta_av_co_is_scrambling_enabled();
   bool is44p1kFreqSupported = bta_av_co_is_44p1kFreq_enabled();
-
-  A2DP_SetOffloadStatus(a2dp_offload, a2dp_ofload_cap, isScramblingSupported,
+  if(!is_a2dp_split_sink_enabled()) {
+    A2DP_SetOffloadStatus(a2dp_offload, a2dp_ofload_cap, isScramblingSupported,
                        is44p1kFreqSupported, offload_enabled_codecs_config);
+  }
 
 /* SPLITA2DP */
   bool isMcastSupported = btif_av_is_multicast_supported();
