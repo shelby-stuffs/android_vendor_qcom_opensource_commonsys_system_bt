@@ -49,6 +49,12 @@
  *
  ******************************************************************************/
 
+/*
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
 /******************************************************************************
  *
  *  This is the advanced audio/video call-out function implementation for
@@ -102,6 +108,8 @@ std::mutex isDevUiReq_mutex_;
 /* Macro to convert audio handle to index and vice versa */
 #define BTA_AV_CO_AUDIO_HNDL_TO_INDX(hndl) (((hndl) & (~BTA_AV_CHNL_MSK)) - 1)
 #define BTA_AV_CO_AUDIO_INDX_TO_HNDL(indx) (((indx) + 1) | BTA_AV_CHNL_AUDIO)
+
+#define A2DP_SINK_AUDIO_CODEC_AAC 0x02
 
 static void bta_av_co_free_peer(tBTA_AV_CO_PEER* p_peer);
 /* SCMS-T protect info */
@@ -171,6 +179,9 @@ extern bool btif_av_check_is_reconfig_pending_flag_set(RawAddress address);
 extern bool btif_av_check_is_cached_reconfig_event_exist(RawAddress address);
 extern bool btif_av_check_is_retry_reconfig_set(RawAddress address);
 extern void btif_av_clear_is_retry_reconfig_flag(RawAddress address);
+
+extern bool is_a2dp_split_sink_enabled();
+extern pthread_mutex_t split_sink_codec_q_lock;
 
 /*******************************************************************************
  **
@@ -506,6 +517,7 @@ static void bta_av_co_store_peer_codectype(const tBTA_AV_CO_PEER* p_peer)
   device_iot_config_addr_set_hex(p_peer->addr,
           IOT_CONF_KEY_A2DP_CODECTYPE, peer_codec_type, IOT_CONF_BYTE_NUM_1);
 }
+
 #endif
 
 /*******************************************************************************

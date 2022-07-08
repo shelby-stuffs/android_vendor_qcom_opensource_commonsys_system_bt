@@ -14,6 +14,12 @@
  * limitations under the License.
  */
 
+/*
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
 #define LOG_TAG "BTAudioClientIf"
 
 #include "client_interface.h"
@@ -140,6 +146,7 @@ class BluetoothAudioPortImpl : public BluetoothAudioPort {
   }
 
   Return<void> updateAptxMode(uint16_t aptxMode) {
+    LOG(WARNING) << __func__ << ": latency " << aptxMode;
     return Void();
   }
 
@@ -220,6 +227,8 @@ class BluetoothAudioPortImpl_2_1 : public BluetoothAudioPort_2_1 {
   }
 
   Return<void> updateAptxMode(uint16_t aptxMode) {
+    sink_2_1_->UpdateSinkLatency(aptxMode);
+    LOG(WARNING) << __func__ << ": latency " << aptxMode;
     return Void();
   }
 
