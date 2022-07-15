@@ -282,6 +282,7 @@ typedef struct {
   tBTA_GATTC_STATE state;
   tGATT_STATUS status;
   uint16_t reason;
+  uint16_t handle;
 } tBTA_GATTC_CLCB;
 
 /* back ground connection tracking information */
