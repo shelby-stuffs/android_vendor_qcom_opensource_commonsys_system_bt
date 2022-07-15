@@ -974,8 +974,9 @@ void bta_dm_hci_raw_command (tBTA_DM_MSG *p_data)
  ***
  ******************************************************************************/
 void bta_dm_process_remove_device(const RawAddress& bd_addr) {
+
   /* need to remove all pending background connection before unpair */
-  BTA_GATTC_CancelOpen(0, bd_addr, false);
+  GATT_CancelConnect(0, bd_addr, false);
 
   BTM_SecDeleteDevice(bd_addr);
 
