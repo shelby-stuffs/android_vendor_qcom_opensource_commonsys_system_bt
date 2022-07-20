@@ -3096,14 +3096,16 @@ void btif_dm_create_bond_out_of_band(const RawAddress * bd_addr,
           break;
         case BTM_OOB_PRESENT_256:
           LOG_INFO(LOG_TAG, "Using P256");
-          [[fallthrough]];
-        default:
           // TODO(181889116):
           // Upgrade to support p256 (for now we just ignore P256)
           // because the controllers do not yet support it.
+          bond_state_changed(BT_STATUS_UNSUPPORTED, *bd_addr,
+                             BT_BOND_STATE_NONE);
+          return;
+        default:
           LOG_ERROR(LOG_TAG, "Invalid data present for controller: %d",
                     oob_cb.data_present);
-          bond_state_changed(BT_STATUS_FAIL, *bd_addr, BT_BOND_STATE_NONE);
+          bond_state_changed(BT_STATUS_UNSUPPORTED, *bd_addr, BT_BOND_STATE_NONE);
           return;
       }
       pairing_cb.is_local_initiated = true;
@@ -3143,7 +3145,7 @@ void btif_dm_create_bond_out_of_band(const RawAddress * bd_addr,
     }
     default:
       LOG_ERROR(LOG_TAG, "Invalid transport: %d", transport);
-      bond_state_changed(BT_STATUS_FAIL, *bd_addr, BT_BOND_STATE_NONE);
+      bond_state_changed(BT_STATUS_PARM_INVALID, *bd_addr, BT_BOND_STATE_NONE);
       return;
   }
 }
@@ -3214,7 +3216,7 @@ void btif_dm_hh_open_failed(RawAddress* bdaddr) {
     btif_storage_remove_bonded_device(bdaddr);
     BTA_DmRemoveDevice(*bdaddr);
     BTA_DmResetPairingflag(pairing_cb.bd_addr);
-    bond_state_changed(BT_STATUS_FAIL, *bdaddr, BT_BOND_STATE_NONE);
+    bond_state_changed(BT_STATUS_RMT_DEV_DOWN, *bdaddr, BT_BOND_STATE_NONE);
   }
 }
 
