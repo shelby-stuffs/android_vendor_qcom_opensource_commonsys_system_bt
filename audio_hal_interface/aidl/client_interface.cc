@@ -60,6 +60,8 @@ namespace aidl {
 using ::aidl::android::hardware::bluetooth::audio::LeAudioConfiguration;
 using ::aidl::android::hardware::bluetooth::audio::LeAudioCodecConfiguration;
 
+std::unordered_set<BluetoothAudioClientInterface *> BluetoothAudioClientInterface::objs_address_;
+
 std::ostream& operator<<(std::ostream& os, const BluetoothAudioCtrlAck& ack) {
   switch (ack) {
     case BluetoothAudioCtrlAck::SUCCESS_FINISHED:
@@ -88,6 +90,12 @@ BluetoothAudioClientInterface::BluetoothAudioClientInterface(
       transport_(instance) {
   death_recipient_ = ::ndk::ScopedAIBinder_DeathRecipient(
       AIBinder_DeathRecipient_new(binderDiedCallbackAidl));
+
+  objs_address_.insert(this);
+}
+
+BluetoothAudioClientInterface::~BluetoothAudioClientInterface() {
+  objs_address_.erase(this);
 }
 
 bool BluetoothAudioClientInterface::is_aidl_available() {
@@ -155,8 +163,12 @@ void BluetoothAudioClientInterface::FetchAudioProvider() {
     return;
   }
 
-  LOG(ERROR) << __func__ << ": AIDL";
+  LOG(ERROR) << __func__ << ": AIDL: " << this;
 
+  if (isDestroy(this)) {
+    LOG(ERROR) << __func__ << ": AIDL: object deleted!";
+    return;
+  }
 
 #if 0
   ndk::SpAIBinder provider_ext_binder;
@@ -238,10 +250,14 @@ BluetoothAudioSourceClientInterface::~BluetoothAudioSourceClientInterface() {
 }
 
 void BluetoothAudioClientInterface::binderDiedCallbackAidl(void* ptr) {
-  LOG(WARNING) << __func__ << ": AIDL: restarting connection with new Audio Hal";
+  LOG(WARNING) << __func__ << ": AIDL: restarting connection with new Audio Hal, ptr = " << ptr;
   auto client = static_cast<BluetoothAudioClientInterface*>(ptr);
   if (client == nullptr) {
     LOG(ERROR) << __func__ << ": AIDL: null audio HAL died!";
+    return;
+  }
+  if (isDestroy(client)) {
+    LOG(ERROR) << __func__ << "AIDL: object deleted!";
     return;
   }
   client->RenewAudioProviderAndSession();
