@@ -118,7 +118,7 @@ std::mutex active_profile_mtx;
 #define BAP        0x01
 #define GCP        0x02
 #define WMCP       0x04
-#define VMCP       0x08
+#define TMAP       0x08
 #define BAP_CALL   0x10
 #define GCP_RX     0x20
 
