@@ -223,6 +223,12 @@ void btif_ahim_process_request(tA2DP_CTRL_CMD cmd, uint8_t profile,
 }
 
 void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
+  auto track_count = source_metadata.track_count;
+  auto usage = source_metadata.tracks->usage;
+
+  LOG(INFO) << __func__ << ", track_count: " << track_count
+                        << ", usage: " << usage;
+
   // pass on the callbacks to ACM only for new vendor
   if(btif_ahim_is_aosp_aidl_hal_enabled()) {
     BTIF_TRACE_IMP("%s: sending AIDL request to Audio Group Manager", __func__);
@@ -240,6 +246,12 @@ void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
 }
 
 void btif_ahim_update_sink_metadata (const sink_metadata_t& sink_metadata) {
+  auto track_count = sink_metadata.track_count;
+  auto source = sink_metadata.tracks->source;
+
+  LOG(INFO) << __func__ << ", track_count: " << track_count
+                        << ", source: " << source;
+
   // pass on the callbacks to ACM only for new vendor
   if(btif_ahim_is_aosp_aidl_hal_enabled()) {
     BTIF_TRACE_IMP("%s: sending AIDL request to Audio Group Manager", __func__);
