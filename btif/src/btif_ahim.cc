@@ -886,11 +886,8 @@ void btif_ahim_ack_stream_started(const tA2DP_CTRL_ACK& ack, uint8_t profile) {
       uint16_t profile_type =
                btif_ahim_get_lea_active_profile(profile);
 
-      if (ack != A2DP_CTRL_ACK_SUCCESS && ack != A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS) {
-        BTIF_TRACE_IMP("%s: Ack is not success yet, return", __func__);
-        return;
-      }
-      if (ack == A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS) {
+      if (ack == A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS ||
+        ack == A2DP_CTRL_ACK_FAILURE) {
         if (profile_type == BAP || profile_type == GCP ||
           profile_type == BAP_CALL || profile_type == GCP_RX) {
           if(unicastSinkClientInterface)
@@ -901,7 +898,14 @@ void btif_ahim_ack_stream_started(const tA2DP_CTRL_ACK& ack, uint8_t profile) {
           if(unicastSourceClientInterface)
             unicastSourceClientInterface->CancelStreamingRequest();
         }
+        return;
       }
+
+      if (ack != A2DP_CTRL_ACK_SUCCESS) {
+        BTIF_TRACE_IMP("%s: Ack is not success yet, return", __func__);
+        return;
+      }
+
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
         if(unicastSinkClientInterface)
           unicastSinkClientInterface->ConfirmStreamingRequest();
