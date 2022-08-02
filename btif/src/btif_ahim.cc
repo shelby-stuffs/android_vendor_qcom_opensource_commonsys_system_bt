@@ -974,7 +974,8 @@ void btif_ahim_ack_stream_profile_suspended(const tA2DP_CTRL_ACK& ack, uint8_t p
             unicastSourceClientInterface->CancelSuspendRequestWithReconfig();
         }
         return;
-      } else if (ack == A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS) {
+      } else if (ack == A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS ||
+                 ack == A2DP_CTRL_ACK_FAILURE) {
         if(profile_type == BAP || profile_type == GCP ||
           profile_type == BAP_CALL || profile_type == GCP_RX) {
           if(unicastSinkClientInterface)
