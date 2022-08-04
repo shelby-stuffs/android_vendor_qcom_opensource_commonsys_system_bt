@@ -2958,6 +2958,18 @@ static void btm_ble_process_adv_pkt_cont(
     (&p_i->inq_info.results)->include_rsi = true;
   }
 
+  if (btm_cb.is_csip_opportunistic_scan_enabled && btm_cb.p_csip_scan_cb) {
+      uint8_t data_len = 0;
+      const uint8_t* g_data = NULL;
+      g_data = AdvertiseDataParser::GetFieldByType(adv_data, BTM_CSIP_RSI_TYPE,
+                                                   &data_len);
+      if (g_data && data_len == BTM_CSIP_RSI_LEN) {
+         uint8_t gid_data[BTM_CSIP_RSI_LEN] = {};
+         memcpy(gid_data, g_data, BTM_CSIP_RSI_LEN);
+         (*btm_cb.p_csip_scan_cb) (bda, (uint8_t *)gid_data);
+      }
+  }
+
   uint8_t result = btm_ble_is_discoverable(bda, adv_data);
   if (result == 0) {
     cache.Clear(addr_type, bda);
@@ -2990,18 +3002,6 @@ static void btm_ble_process_adv_pkt_cont(
 
       btm_acl_update_busy_level(BTM_BLI_INQ_DONE_EVT);
     }
-  }
-
-  if (btm_cb.is_csip_opportunistic_scan_enabled && btm_cb.p_csip_scan_cb) {
-      uint8_t data_len = 0;
-      const uint8_t* g_data = NULL;
-      g_data = AdvertiseDataParser::GetFieldByType(adv_data, BTM_CSIP_RSI_TYPE,
-                                                   &data_len);
-      if (g_data && data_len == BTM_CSIP_RSI_LEN) {
-         uint8_t gid_data[BTM_CSIP_RSI_LEN] = {};
-         memcpy(gid_data, g_data, BTM_CSIP_RSI_LEN);
-         (*btm_cb.p_csip_scan_cb) (bda, (uint8_t *)gid_data);
-      }
   }
 
   tBTM_INQ_RESULTS_CB* p_inq_results_cb = p_inq->p_inq_results_cb;
