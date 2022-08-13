@@ -830,6 +830,29 @@ tA2DP_CTRL_CMD btif_ahim_get_pending_command(uint8_t profile) {
   return A2DP_CTRL_CMD_NONE;
 }
 
+tA2DP_CTRL_CMD btif_ahim_get_pending_command(uint8_t profile,
+                                             uint8_t direction) {
+  if (btif_ahim_is_aosp_aidl_hal_enabled()) {
+    if (profile == A2DP) {
+       return bluetooth::audio::aidl::a2dp::GetPendingCmd();
+    } else if (profile == AUDIO_GROUP_MGR) {
+      if(direction == TO_AIR) {
+        if(unicastSinkClientInterface)
+          return unicastSinkClientInterface->GetPendingCmd();
+      } else {
+        if(unicastSourceClientInterface)
+          return unicastSourceClientInterface->GetPendingCmd();
+      }
+    } else if (profile == BROADCAST) {
+        if (broadcastSinkClientInterface)
+          return broadcastSinkClientInterface->GetPendingCmd();
+    }
+  } else if (btif_ahim_is_qc_hal_enabled()) {
+    return bluetooth::audio::a2dp::get_pending_command();
+  }
+  return A2DP_CTRL_CMD_NONE;
+}
+
 void btif_ahim_reset_pending_command(uint8_t profile) {
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
     if (profile == A2DP) {
@@ -848,6 +871,32 @@ void btif_ahim_reset_pending_command(uint8_t profile) {
         if(unicastSourceClientInterface)
           unicastSourceClientInterface->ResetPendingCmd();
       } else if(profile_type == WMCP) { // FromAir only
+        if(unicastSourceClientInterface)
+          unicastSourceClientInterface->ResetPendingCmd();
+      }
+    } else if (profile == BROADCAST) {
+      if (broadcastSinkClientInterface)
+        broadcastSinkClientInterface->ResetPendingCmd();
+    }
+  } else if (btif_ahim_is_qc_hal_enabled()) {
+    if (cur_active_profile == profile) {
+      bluetooth::audio::a2dp::reset_pending_command();
+    } else {
+      BTIF_TRACE_WARNING("%s, reset pending cmd ignored from #\
+                          inactive profile", __func__);
+    }
+  }
+}
+
+void btif_ahim_reset_pending_command(uint8_t profile, uint8_t direction) {
+  if (btif_ahim_is_aosp_aidl_hal_enabled()) {
+    if (profile == A2DP) {
+       return bluetooth::audio::aidl::a2dp::ResetPendingCmd();
+    } else if (profile == AUDIO_GROUP_MGR) {
+      if(direction == TO_AIR) {  // ToAIr only
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->ResetPendingCmd();
+      } else {
         if(unicastSourceClientInterface)
           unicastSourceClientInterface->ResetPendingCmd();
       }
@@ -943,6 +992,16 @@ void btif_ahim_ack_stream_started(const tA2DP_CTRL_ACK& ack, uint8_t profile) {
 
 void btif_ahim_ack_stream_suspended(const tA2DP_CTRL_ACK& ack, uint8_t profile) {
   btif_ahim_ack_stream_profile_suspended(ack, profile, 0);
+}
+
+void btif_ahim_ack_stream_direction_suspended(const tA2DP_CTRL_ACK& ack, uint8_t profile, uint8_t direction) {
+  if(direction == FROM_AIR) {
+    // Fake WMCP for FROM_AIR
+    btif_ahim_ack_stream_profile_suspended(ack, profile, WMCP);
+  } else {
+    // Fake BAP for TO_AIR
+    btif_ahim_ack_stream_profile_suspended(ack, profile, BAP);
+  }
 }
 
 void btif_ahim_ack_stream_profile_suspended(const tA2DP_CTRL_ACK& ack, uint8_t profile,
