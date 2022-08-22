@@ -437,6 +437,18 @@ BTIF_TRACE_IMP("%s:", __func__);
   }
 }
 
+uint8_t btif_aar4_channel_mode(uint8_t mode) {
+BTIF_TRACE_IMP("%s:", __func__);
+  switch (mode) {
+    case BTAV_A2DP_CODEC_CHANNEL_MODE_MONO:
+      return 2;
+    case BTAV_A2DP_CODEC_CHANNEL_MODE_STEREO:
+      return 1;
+    default:
+      return 0;
+  }
+}
+
 LC3ChannelMode btif_lc3_channel_mode(uint8_t mode) {
 BTIF_TRACE_IMP("%s: mode: %d", __func__, mode);
   switch (mode) {
@@ -497,6 +509,8 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
   uint8_t cis_count = 2;
   LC3ChannelMode ch_mode = btif_lc3_channel_mode(
       pclient_cbs[profile - 1]->get_channel_mode_cb(direction));
+  uint8_t channel_mode = btif_aar4_channel_mode(
+      pclient_cbs[profile - 1]->get_channel_mode_cb(direction));
 
   BTIF_TRACE_IMP("%s: ch_mode: %d", __func__, static_cast<uint16_t>(ch_mode));
 
@@ -549,6 +563,33 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
                         pclient_cbs[profile - 1]->get_feature_map(direction),
                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // RFU
                       };
+    } else if (codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_R4) {
+        le_vendor_config.vendorCodecType = VendorCodecType::APTX_ADAPTIVE_R4;
+        for (int i = 0; i < 4; i++) {
+          le_vendor_config.codecSpecificData.push_back((profile & (0xff <<((3 - i)*8))) >> ((3 - i)*8));
+        }
+        for (int i = 4; i < 8; i++) {
+          le_vendor_config.codecSpecificData.push_back((channel_mode & (0xff <<((7 - i)*8))) >> ((7 - i)*8));
+        }
+        for (int i = 8; i < 12; i++) {
+          le_vendor_config.codecSpecificData.push_back((pclient_cbs[profile - 1]->get_targetHQTTPAdj_cb(direction) & (0xff <<((11 - i)*8))) >> ((11 - i)*8));
+        }
+        le_vendor_config.codecSpecificData.push_back(0x0F); //Vendor Metadata Length
+        le_vendor_config.codecSpecificData.push_back(0xFF); //Vendor META data type
+        le_vendor_config.codecSpecificData.push_back(0x0A); //Qtil ID
+        le_vendor_config.codecSpecificData.push_back(0x00);
+        le_vendor_config.codecSpecificData.push_back(0x0B); //Vendor Metadata length
+        le_vendor_config.codecSpecificData.push_back(0x11);//Vendor META data type - Supported features for AptX
+        le_vendor_config.codecSpecificData.push_back(pclient_cbs[profile - 1]->get_codec_encoder_version(direction));
+        le_vendor_config.codecSpecificData.push_back(pclient_cbs[profile - 1]->get_codec_decoder_version(direction));
+        le_vendor_config.codecSpecificData.push_back(pclient_cbs[profile - 1]->get_min_sup_frame_dur(direction));
+        le_vendor_config.codecSpecificData.push_back(pclient_cbs[profile - 1]->get_feature_map(direction));
+        le_vendor_config.codecSpecificData.push_back(0x00);
+        le_vendor_config.codecSpecificData.push_back(0x00);
+        le_vendor_config.codecSpecificData.push_back(0x00);
+        le_vendor_config.codecSpecificData.push_back(0x00);
+        le_vendor_config.codecSpecificData.push_back(0x00);
+        le_vendor_config.codecSpecificData.push_back(0x00);
     } else {
       is_lc3q_supported = true;
       le_vendor_config.vendorCodecType = VendorCodecType::LC3Q;
@@ -683,17 +724,36 @@ bool btif_ahim_setup_codec(uint8_t profile) {
       uint16_t profile_type = btif_ahim_get_lea_active_profile(profile);
       BTIF_TRACE_IMP("%s: AIDL, profile_type: %d", __func__, profile_type);
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-        if (!leAudio_get_selected_hal_codec_config(&lea_tx_config, profile,
-                                                    TX_ONLY_CONFIG)) {
-          LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
-          return false;
-        }
+        CodecIndex codec_type = (CodecIndex) pclient_cbs[profile - 1]->get_codec_type(TX_ONLY_CONFIG);
+        if (codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_R4) {
+          if (!leAudio_get_selected_hal_codec_config(&lea_tx_config, profile,
+                                                      TX_ONLY_CONFIG)) {
+            LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
+            return false;
+          }
+          if(unicastSinkClientInterface)
+            unicastSinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
 
-        //LOG(ERROR) << __func__
-        //     << ": audio_config_tag: " << lea_tx_config.getTag();
-        // TODO to fill both session/single session configs based on profile
-        if(unicastSinkClientInterface)
-          unicastSinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
+          if (!leAudio_get_selected_hal_codec_config(&lea_rx_config, profile,
+                                                      TX_RX_BOTH_CONFIG)) {
+            LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
+            return false;
+          }
+          if(unicastSourceClientInterface)
+            unicastSourceClientInterface->UpdateAudioConfigToHal(lea_rx_config);
+        } else {
+            if (!leAudio_get_selected_hal_codec_config(&lea_tx_config, profile,
+                                                      TX_ONLY_CONFIG)) {
+            LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
+            return false;
+            }
+
+            //LOG(ERROR) << __func__
+            //     << ": audio_config_tag: " << lea_tx_config.getTag();
+            // TODO to fill both session/single session configs based on profile
+            if(unicastSinkClientInterface)
+              unicastSinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
+        }
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX ||
                 profile_type == WMCP_TX) { // Toair and FromAir
@@ -751,8 +811,16 @@ void btif_ahim_start_session(uint8_t profile) {
                btif_ahim_get_lea_active_profile(profile);
       BTIF_TRACE_IMP("%s: AIDL, profile_type: %d", __func__, profile_type);
       if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
-        if(unicastSinkClientInterface)
-          unicastSinkClientInterface->StartSession();
+        CodecIndex codec_type = (CodecIndex) pclient_cbs[profile - 1]->get_codec_type(TX_ONLY_CONFIG);
+        if (codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_R4) {
+          if(unicastSinkClientInterface)
+            unicastSinkClientInterface->StartSession();
+          if(unicastSourceClientInterface)
+            unicastSourceClientInterface->StartSession();
+        } else {
+          if(unicastSinkClientInterface)
+            unicastSinkClientInterface->StartSession();
+        }
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX ||
                 profile_type == WMCP_TX) { // Toair and FromAir
