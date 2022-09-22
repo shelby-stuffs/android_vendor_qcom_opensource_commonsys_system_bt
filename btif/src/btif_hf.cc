@@ -1045,6 +1045,7 @@ class HeadsetInterface : Interface {
                                bthf_call_state_t call_setup_state,
                                const char* number, bthf_call_addrtype_t type,
                                const char* name, RawAddress* bd_addr) override;
+  bt_status_t SetScoOffloadEnabled(bool value) override;
 
   void Cleanup() override;
   bt_status_t SetScoAllowed(bool value) override;
@@ -2234,6 +2235,10 @@ bt_status_t HeadsetInterface::PhoneStateChange(
         IOT_CONF_KEY_HFP_SCO_CONN_COUNT);
 #endif
   return status;
+}
+
+bt_status_t HeadsetInterface::SetScoOffloadEnabled(bool value) {
+    return BT_STATUS_SUCCESS;
 }
 
 /*******************************************************************************
