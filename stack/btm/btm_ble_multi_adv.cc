@@ -15,6 +15,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #include "bt_target.h"
@@ -482,8 +486,9 @@ class BleAdvertisingManagerImpl
 
     int own_address_type =
         BTM_BleLocalPrivacyEnabled() ? BLE_ADDR_RANDOM : BLE_ADDR_PUBLIC;
-    if (params->own_address_type != BLE_ADDR_ANONYMOUS) {
-      own_address_type = params->own_address_type;
+    if (params->own_address_type != BLE_ADDR_ANONYMOUS
+        && params->own_address_type != BLE_ADDR_DEFAULT) {
+        own_address_type = params->own_address_type;
     }
 
     // this code is intentionally left formatted this way to highlight the
