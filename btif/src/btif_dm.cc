@@ -3762,6 +3762,16 @@ static void btif_dm_ble_auth_cmpl_evt(tBTA_DM_AUTH_CMPL* p_auth_cmpl) {
     } else {
       btif_dm_save_ble_bonding_keys(bdaddr);
 #ifdef ADV_AUDIO_FEATURE
+      if (is_remote_support_adv_audio(bd_addr)) {
+        APPL_TRACE_DEBUG("%s saving the pairing info in adv audio CB",
+            __func__);
+        uint16_t transport = BT_TRANSPORT_LE;
+        if (p_auth_cmpl->smp_over_br) {
+          transport = BT_TRANSPORT_BR_EDR;
+        }
+        bta_adv_audio_update_bond_db(bd_addr, transport);
+        pairing_cb.is_adv_audio = 1;
+      }
       if (bta_remote_device_is_dumo(bd_addr)) {
         APPL_TRACE_DEBUG("%s Storing BLE KEYS Identity Address ", __func__);
         RawAddress id_addr = bta_get_rem_dev_id_addr(bd_addr);
