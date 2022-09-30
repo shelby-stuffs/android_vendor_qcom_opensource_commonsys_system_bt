@@ -587,11 +587,12 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
     }
 
     for (int i = 0; i < cis_count; i++) {
-      int channel = (CHANNEL_FL + (i%2));
+      int channel = pclient_cbs[profile - 1]->get_audio_location(i%2, direction);
       if (is_mono_mic_channel_config) {
         channel = CHANNEL_MONO;
         LOG(ERROR) << __func__ << ": Set Mono config channel";
       }
+      LOG(ERROR) << __func__ << ": channel location: " << channel;
       ucast_config.streamMap.push_back({
           .streamHandle = static_cast<char16_t>(i),
           .audioChannelAllocation = channel,
