@@ -592,6 +592,12 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
         channel = CHANNEL_MONO;
         LOG(ERROR) << __func__ << ": Set Mono config channel";
       }
+
+      if (ch_mode == LC3ChannelMode::JOINT_STEREO) {
+        LOG(ERROR) << __func__ << ": Set Stereo config channel";
+        channel = (CHANNEL_FL | CHANNEL_FR);
+      }
+
       LOG(ERROR) << __func__ << ": channel location: " << channel;
       ucast_config.streamMap.push_back({
           .streamHandle = static_cast<char16_t>(i),
