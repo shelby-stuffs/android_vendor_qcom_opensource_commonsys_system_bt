@@ -248,6 +248,17 @@ void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
   }
 }
 
+void btif_ahim_update_params (uint16_t delay, uint8_t mode) {
+  // pass on the callbacks to ACM only for new vendor
+  if(btif_ahim_is_aosp_aidl_hal_enabled()) {
+    if (pclient_cbs[AUDIO_GROUP_MGR - 1] &&
+        pclient_cbs[AUDIO_GROUP_MGR - 1]->params_update) {
+      BTIF_TRACE_IMP("%s: calling updateParams for Audio Group Manager", __func__);
+      pclient_cbs[AUDIO_GROUP_MGR - 1]->params_update(delay, mode);
+    }
+  }
+}
+
 void btif_ahim_update_sink_metadata (const sink_metadata_t& sink_metadata) {
   auto track_count = sink_metadata.track_count;
   auto source = sink_metadata.tracks->source;
@@ -555,11 +566,12 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
         le_vendor_config.vendorCodecType = VendorCodecType::APTX_ADAPTIVE_R4;
         LOG(ERROR) << __func__ << ": AptX R4 metadata params are updated";
         for (int i = 0; i < 4; i++) {
-          le_vendor_config.codecSpecificData.push_back((
-             pclient_cbs[profile - 1]->get_mode_cb() &
-             (0xff <<((3 - i)*8))) >> ((3 - i)*8));
-           BTIF_TRACE_IMP("%s: AIDL, extension metadata for AAR4 [%d]: %d", __func__, i+16,
-                      le_vendor_config.codecSpecificData[i+16]);
+          le_vendor_config.codecSpecificData.push_back((pclient_cbs[profile - 1]->get_mode_cb() &
+          (0xff <<((3 - i)*8))) >> ((3 - i)*8));
+        }
+        for (int i = 4; i < 6; i++) {
+          le_vendor_config.codecSpecificData.push_back((unicastSinkClientInterface->GetRemoteDelay() &
+          (0xff <<((5 - i)*8))) >> ((5 - i)*8));
         }
       } else {
         le_vendor_config.vendorCodecType = VendorCodecType::APTX_ADAPTIVE_R3;
@@ -1169,6 +1181,28 @@ size_t btif_ahim_read(uint8_t* p_buf, uint32_t len) {
   return bluetooth::audio::aidl::a2dp::read(p_buf, len);
 }
 
+void btif_ahim_update_audio_config() {
+  AudioConfigurationAIDL lea_tx_config, lea_rx_config;
+  CodecIndex codec_type =
+    (CodecIndex) pclient_cbs[AUDIO_GROUP_MGR - 1]->get_codec_type(TX_ONLY_CONFIG);
+  if (codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_R4) {
+    if (!leAudio_get_selected_hal_codec_config(&lea_tx_config, AUDIO_GROUP_MGR,
+                                                TX_ONLY_CONFIG)) {
+      LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
+      return;
+    }
+    if(unicastSinkClientInterface)
+      unicastSinkClientInterface->UpdateAudioConfigToHal(lea_tx_config);
+  }
+}
+
+uint16_t btif_ahim_get_remote_delay() {
+if(unicastSinkClientInterface)
+  return unicastSinkClientInterface->GetRemoteDelay();
+else
+  return 0xFFFF;
+}
+
 void btif_ahim_set_remote_delay(uint16_t delay_report, uint8_t profile) {
   BTIF_TRACE_IMP("%s: AIDL, profile: %d, delay_report: %d",
                                         __func__, profile, delay_report);
@@ -1193,7 +1227,6 @@ void btif_ahim_set_remote_delay(uint16_t delay_report, uint8_t profile) {
         if(unicastSourceClientInterface)
           unicastSourceClientInterface->SetRemoteDelay(delay_report);
       }
-
     } else if (profile == BROADCAST) {
       if (broadcastSinkClientInterface) {
         broadcastSinkClientInterface->SetRemoteDelay(delay_report);
