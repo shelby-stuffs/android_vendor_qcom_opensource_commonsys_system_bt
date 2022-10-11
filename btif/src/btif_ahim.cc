@@ -72,6 +72,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 #include <btif_vmcp.h>
 #include <aidl/vendor/qti/hardware/bluetooth/audio/LeAudioVendorConfiguration.h>
 #include <aidl/vendor/qti/hardware/bluetooth/audio/VendorCodecType.h>
+#include "osi/include/properties.h"
 
 using bluetooth::audio::aidl::le_audio::LeAudioClientInterface;
 
@@ -437,18 +438,6 @@ BTIF_TRACE_IMP("%s:", __func__);
   }
 }
 
-uint8_t btif_aar4_channel_mode(uint8_t mode) {
-BTIF_TRACE_IMP("%s:", __func__);
-  switch (mode) {
-    case BTAV_A2DP_CODEC_CHANNEL_MODE_MONO:
-      return 2;
-    case BTAV_A2DP_CODEC_CHANNEL_MODE_STEREO:
-      return 1;
-    default:
-      return 0;
-  }
-}
-
 LC3ChannelMode btif_lc3_channel_mode(uint8_t mode) {
 BTIF_TRACE_IMP("%s: mode: %d", __func__, mode);
   switch (mode) {
@@ -509,8 +498,6 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
   uint8_t cis_count = 2;
   LC3ChannelMode ch_mode = btif_lc3_channel_mode(
       pclient_cbs[profile - 1]->get_channel_mode_cb(direction));
-  uint8_t channel_mode = btif_aar4_channel_mode(
-      pclient_cbs[profile - 1]->get_channel_mode_cb(direction));
 
   BTIF_TRACE_IMP("%s: ch_mode: %d", __func__, static_cast<uint16_t>(ch_mode));
 
@@ -523,6 +510,13 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
   uint16_t frame_duration = pclient_cbs[profile - 1]->get_frame_length_cb(direction);
   bool is_lc3q_supported = false;
   CodecIndex codec_type = (CodecIndex) pclient_cbs[profile - 1]->get_codec_type(direction);
+  /*  >> XPAN Testing Purpose Only */
+  char r4_aidl_value[PROPERTY_VALUE_MAX] = "true";
+  property_get("persist.vendor.service.bt.test_aidl_r4", r4_aidl_value, "false");
+  if (std::string{r4_aidl_value, 4} == "true") {
+    codec_type =  CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_R4;
+  }
+  /*  << XPAN Testing Purpose Only. */
   if (codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_LE) {
     frame_duration =
         ((pclient_cbs[profile - 1]->get_min_sup_frame_dur(direction)) / 4) * 1000;
@@ -566,13 +560,11 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
     } else if (codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_R4) {
         le_vendor_config.vendorCodecType = VendorCodecType::APTX_ADAPTIVE_R4;
         for (int i = 0; i < 4; i++) {
-          le_vendor_config.codecSpecificData.push_back((profile & (0xff <<((3 - i)*8))) >> ((3 - i)*8));
-        }
-        for (int i = 4; i < 8; i++) {
-          le_vendor_config.codecSpecificData.push_back((channel_mode & (0xff <<((7 - i)*8))) >> ((7 - i)*8));
-        }
-        for (int i = 8; i < 12; i++) {
-          le_vendor_config.codecSpecificData.push_back((pclient_cbs[profile - 1]->get_targetHQTTPAdj_cb(direction) & (0xff <<((11 - i)*8))) >> ((11 - i)*8));
+       /* le_vendor_config.codecSpecificData.push_back((pclient_cbs[profile - 1]->get_mode_cb(direction) &
+	      (0xff <<((3 - i)*8))) >> ((3 - i)*8)); */
+       /*  >> XPAN Testing Purpose Only */
+          le_vendor_config.codecSpecificData.push_back((0x02 & (0xff <<((3 - i)*8))) >> ((3 - i)*8));
+       /*  << XPAN Testing Purpose Only */
         }
         le_vendor_config.codecSpecificData.push_back(0x0F); //Vendor Metadata Length
         le_vendor_config.codecSpecificData.push_back(0xFF); //Vendor META data type
@@ -649,7 +641,6 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
           LOG(ERROR) << __func__ << ": Set Mono config Channel";
           channel = CHANNEL_MONO;
       }
-
       LOG(ERROR) << __func__ << ": channel location: " << channel;
       ucast_config.streamMap.push_back({
           .streamHandle = static_cast<char16_t>(i),
@@ -743,9 +734,9 @@ bool btif_ahim_setup_codec(uint8_t profile) {
             unicastSourceClientInterface->UpdateAudioConfigToHal(lea_rx_config);
         } else {
             if (!leAudio_get_selected_hal_codec_config(&lea_tx_config, profile,
-                                                      TX_ONLY_CONFIG)) {
-            LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
-            return false;
+                                                        TX_ONLY_CONFIG)) {
+              LOG(ERROR) << __func__ << ": Failed to get CodecConfiguration";
+              return false;
             }
 
             //LOG(ERROR) << __func__
@@ -818,8 +809,8 @@ void btif_ahim_start_session(uint8_t profile) {
           if(unicastSourceClientInterface)
             unicastSourceClientInterface->StartSession();
         } else {
-          if(unicastSinkClientInterface)
-            unicastSinkClientInterface->StartSession();
+        if(unicastSinkClientInterface)
+          unicastSinkClientInterface->StartSession();
         }
       } else if(profile_type == BAP_CALL ||
                 profile_type == GCP_RX ||
