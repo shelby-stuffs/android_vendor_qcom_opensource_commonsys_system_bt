@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 /******************************************************************************
@@ -2513,6 +2517,7 @@ static void btm_ble_appearance_to_cod(uint16_t appearance, uint8_t* dev_class) {
   };
 }
 
+#ifdef ADV_AUDIO_FEATURE
 bool parse_adv_audio_uuids_from_adv_pkt (const uint8_t* ad, size_t ad_len,
     uint8_t type) {
   size_t position = 0;
@@ -2540,6 +2545,8 @@ bool parse_adv_audio_uuids_from_adv_pkt (const uint8_t* ad, size_t ad_len,
   }
   return false;
 }
+#endif
+
 /**
  * Update adv packet information into inquiry result.
  */

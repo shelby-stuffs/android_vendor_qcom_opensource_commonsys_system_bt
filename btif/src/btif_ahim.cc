@@ -507,8 +507,8 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
   if (codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_LE) {
     frame_duration =
         ((pclient_cbs[profile - 1]->get_min_sup_frame_dur(direction)) / 4) * 1000;
-    LOG(ERROR) << __func__ << ": fetch frame duration "
-               << frame_duration << " from extended metadata";
+    LOG(ERROR) << __func__ << ": fetch frame duration: "
+               << frame_duration << ", from extended metadata";
   }
   uint8_t encoder_version = 0;
   if (1) {
@@ -526,7 +526,8 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
     le_vendor_config.blocksPerSdu = 1;
 
     encoder_version = pclient_cbs[profile - 1]->get_codec_encoder_version(direction);
-    LOG(ERROR) << __func__ << ": codec negotiated encoder version" << encoder_version;
+    LOG(ERROR) << __func__ << ": codec negotiated encoder version: "
+                           << loghex(encoder_version);
     if (codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_LE) {
       le_vendor_config.vendorCodecType = VendorCodecType::APTX_ADAPTIVE_R3;
       LOG(ERROR) << __func__ << ": AptX LE metadata params are updated";
@@ -574,11 +575,11 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
        .leAudioCodecConfig = LeAudioCodecConfiguration(vendor_config)
     };
 
-    LOG(ERROR) << __func__ << ": type :" << type << "direction :" << direction;
+    LOG(ERROR) << __func__ << ": type :" << type << ", direction :" << direction;
     bool is_mono_mic_channel_config = false;
     if ((direction == TX_RX_BOTH_CONFIG) && (type == GCP_RX) && is_lc3q_supported) {
       encoder_version = pclient_cbs[profile - 1]->get_codec_encoder_version(TX_ONLY_CONFIG);
-      LOG(ERROR) << __func__ << ": Encoder Version " << encoder_version;
+      LOG(ERROR) << __func__ << ": Encoder Version: " << loghex(encoder_version);
       if (encoder_version == LC3Q_CODEC_FT_CHANGE_SUPPORTED_VERSION) {
         is_mono_mic_channel_config = true;
         LOG(ERROR) << __func__ << ": Mono config channel set to true";
@@ -586,11 +587,18 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
     }
 
     for (int i = 0; i < cis_count; i++) {
-      int channel = (CHANNEL_FL + (i%2));
+      int channel = pclient_cbs[profile - 1]->get_audio_location(i%2, direction);
       if (is_mono_mic_channel_config) {
         channel = CHANNEL_MONO;
         LOG(ERROR) << __func__ << ": Set Mono config channel";
       }
+
+      if (ch_mode == LC3ChannelMode::JOINT_STEREO) {
+        LOG(ERROR) << __func__ << ": Set Stereo config channel";
+        channel = (CHANNEL_FL | CHANNEL_FR);
+      }
+
+      LOG(ERROR) << __func__ << ": channel location: " << channel;
       ucast_config.streamMap.push_back({
           .streamHandle = static_cast<char16_t>(i),
           .audioChannelAllocation = channel,
@@ -1101,9 +1109,38 @@ void btif_ahim_set_remote_delay(uint16_t delay_report, uint8_t profile) {
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
     if (profile == A2DP) {
       bluetooth::audio::aidl::a2dp::set_remote_delay(delay_report);
+    } else if (profile == AUDIO_GROUP_MGR) {
+     uint16_t profile_type =
+               btif_ahim_get_lea_active_profile(profile);
+        if(profile_type == BAP || profile_type == GCP) {  // ToAIr only
+          if(unicastSinkClientInterface)
+            unicastSinkClientInterface->SetRemoteDelay(delay_report);
+        } else if(profile_type == BAP_CALL ||
+                  profile_type == GCP_RX) { // Toair and FromAir
+          if(unicastSinkClientInterface)
+            unicastSinkClientInterface->SetRemoteDelay(delay_report);
+          if(unicastSourceClientInterface)
+            unicastSourceClientInterface->SetRemoteDelay(delay_report);
+        } else if(profile_type == WMCP) { // FromAir only
+          if(unicastSourceClientInterface)
+            unicastSourceClientInterface->SetRemoteDelay(delay_report);
+        }
+
+    } else if (profile == BROADCAST) {
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->SetRemoteDelay(delay_report);
+        else {
+        if (broadcastSinkClientInterface)
+          broadcastSinkClientInterface->SetRemoteDelay(delay_report);
+      }
     }
   } else if (btif_ahim_is_qc_hal_enabled()) {
-    bluetooth::audio::aidl::a2dp::set_remote_delay(delay_report);
+    BTIF_TRACE_IMP("%s: QC", __func__);
+    if (cur_active_profile == profile) {
+      bluetooth::audio::aidl::a2dp::set_remote_delay(delay_report);
+    } else {
+      BTIF_TRACE_WARNING("%s, ACK ignored from inactive profile", __func__);
+    }
   }
 }
 
