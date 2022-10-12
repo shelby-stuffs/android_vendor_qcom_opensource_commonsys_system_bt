@@ -171,6 +171,7 @@ tBTA_GATTC_CLCB* bta_gattc_clcb_alloc(tGATT_IF client_if,
       p_clcb->status = GATT_SUCCESS;
       p_clcb->transport = transport;
       p_clcb->bda = remote_bda;
+      p_clcb->p_q_cmd = NULL;
 
       p_clcb->p_rcb = bta_gattc_cl_get_regcb(client_if);
 
@@ -248,7 +249,9 @@ void bta_gattc_clcb_dealloc(tBTA_GATTC_CLCB* p_clcb) {
     osi_free_and_reset((void**)&p_q_cmd);
   }
 
-  osi_free_and_reset((void**)&p_clcb->p_q_cmd);
+  if (p_clcb->p_q_cmd != NULL) {
+    osi_free_and_reset((void**)&p_clcb->p_q_cmd);
+  }
 
   /* Clear p_clcb. Some of the fields are already reset e.g. p_q_cmd_queue and
    * p_q_cmd. */
