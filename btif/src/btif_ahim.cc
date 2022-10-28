@@ -587,15 +587,21 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
     }
 
     for (int i = 0; i < cis_count; i++) {
-      int channel = pclient_cbs[profile - 1]->get_audio_location(i%2, direction);
-      if (is_mono_mic_channel_config) {
-        channel = CHANNEL_MONO;
-        LOG(ERROR) << __func__ << ": Set Mono config channel";
-      }
-
-      if (ch_mode == LC3ChannelMode::JOINT_STEREO) {
-        LOG(ERROR) << __func__ << ": Set Stereo config channel";
-        channel = (CHANNEL_FL | CHANNEL_FR);
+      int channel = CHANNEL_MONO;
+      if (ch_mode == LC3ChannelMode::STEREO) {
+        channel = pclient_cbs[profile - 1]->get_audio_location(i%2, direction);
+        LOG(ERROR) << __func__ << ": channel: " << channel
+                   << ", is_mono_mic_channel_config: " << is_mono_mic_channel_config;
+        if (is_mono_mic_channel_config) {
+          channel = CHANNEL_MONO;
+          LOG(ERROR) << __func__ << ": Set Mono config channel";
+        }
+      } else if (ch_mode == LC3ChannelMode::JOINT_STEREO){
+          LOG(ERROR) << __func__ << ": Set Stereo config channel";
+          channel = (CHANNEL_FL | CHANNEL_FR);
+      } else if (ch_mode == LC3ChannelMode::MONO) {
+          LOG(ERROR) << __func__ << ": Set Mono config Channel";
+          channel = CHANNEL_MONO;
       }
 
       LOG(ERROR) << __func__ << ": channel location: " << channel;
@@ -608,12 +614,6 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
         break;
       }
     }
-    /*for (int i = 0; i < cis_count; i++) {
-      ucast_config.streamMap.push_back({
-          .streamHandle = static_cast<char16_t>(i),
-          .audioChannelAllocation = (CHANNEL_FL + (i%2)),
-      });
-    }*/
     return ucast_config;
   } else {
     // TODO to fill the right PD
