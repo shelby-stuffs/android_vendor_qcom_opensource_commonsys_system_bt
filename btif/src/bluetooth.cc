@@ -568,7 +568,7 @@ static int set_event_filter_inquiry_result_all_devices() {
   return BT_STATUS_SUCCESS;
 }
 
-static int set_default_event_mask() {
+static int set_default_event_mask_except(uint64_t mask, uint64_t le_mask) {
   return BT_STATUS_SUCCESS;
 }
 
@@ -633,9 +633,9 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     disconnect_all_acls,
     le_rand,
     set_event_filter_connection_setup_all_devices,
-    allow_wake_by_hid,
+    set_default_event_mask_except,
     restore_filter_accept_list,
-    set_default_event_mask,
+    allow_wake_by_hid,
     set_event_filter_inquiry_result_all_devices,
     nullptr,
 };
