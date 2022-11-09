@@ -1174,7 +1174,7 @@ void btif_ahim_set_remote_delay(uint16_t delay_report, uint8_t profile) {
   } else if (btif_ahim_is_qc_hal_enabled()) {
     BTIF_TRACE_IMP("%s: QC", __func__);
     if (cur_active_profile == profile) {
-      bluetooth::audio::aidl::a2dp::set_remote_delay(delay_report);
+      bluetooth::audio::a2dp::set_remote_delay(delay_report);
     } else {
       BTIF_TRACE_WARNING("%s, ACK ignored from inactive profile", __func__);
     }
