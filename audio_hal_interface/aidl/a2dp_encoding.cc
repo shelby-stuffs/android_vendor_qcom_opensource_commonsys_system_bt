@@ -160,10 +160,10 @@ bool A2dpTransport::GetPresentationPosition(uint64_t* remote_delay_report_ns,
   *remote_delay_report_ns = remote_delay_report_ * 100000u;
   *total_bytes_read = total_bytes_read_;
   *data_position = data_position_;
-  VLOG(2) << __func__ << "AIDL: delay=" << remote_delay_report_
-          << "/10ms, data=" << total_bytes_read_
-          << " byte(s), timestamp=" << data_position_.tv_sec << "."
-          << data_position_.tv_nsec << "s";
+  LOG(INFO) << __func__ << "AIDL: delay=" << remote_delay_report_
+            << "/10ms, data=" << total_bytes_read_
+            << " byte(s), timestamp=" << data_position_.tv_sec << "."
+            << data_position_.tv_nsec << "s";
   return true;
 }
 
@@ -171,11 +171,11 @@ void A2dpTransport::SourceMetadataChanged(
     const source_metadata_t& source_metadata) {
   auto track_count = source_metadata.track_count;
   auto tracks = source_metadata.tracks;
-  VLOG(1) << __func__ << "AIDL: " << track_count << " track(s) received";
+  LOG(INFO) << __func__ << "AIDL: " << track_count << " track(s) received";
   while (track_count) {
-    VLOG(2) << __func__ << "AIDL: usage=" << tracks->usage
-            << ", content_type=" << tracks->content_type
-            << ", gain=" << tracks->gain;
+     LOG(INFO) << __func__ << "AIDL: usage=" << tracks->usage
+               << ", content_type=" << tracks->content_type
+               << ", gain=" << tracks->gain;
     --track_count;
     ++tracks;
   }
@@ -184,7 +184,7 @@ void A2dpTransport::SourceMetadataChanged(
 void A2dpTransport::SinkMetadataChanged(const sink_metadata_t&) {}
 
 tA2DP_CTRL_CMD A2dpTransport::GetPendingCmd() const {
-LOG(ERROR) << "AIDL Is this function called";
+LOG(ERROR) << ": AIDL Is this function called";
   return a2dp_pending_cmd_;
 }
 
@@ -505,17 +505,22 @@ void cleanup() {
   if (!is_hal_enabled()) return;
   end_session();
 
-  auto a2dp_sink = active_hal_interface->GetTransportInstance();
-  static_cast<A2dpTransport*>(a2dp_sink)->ResetPendingCmd();
-  static_cast<A2dpTransport*>(a2dp_sink)->ResetPresentationPosition();
-  active_hal_interface = nullptr;
+  if (active_hal_interface != nullptr) {
+    auto a2dp_sink = active_hal_interface->GetTransportInstance();
+    static_cast<A2dpTransport*>(a2dp_sink)->ResetPendingCmd();
+    static_cast<A2dpTransport*>(a2dp_sink)->ResetPresentationPosition();
+    active_hal_interface = nullptr;
+  }
 
-  a2dp_sink = software_hal_interface->GetTransportInstance();
-  delete software_hal_interface;
-  software_hal_interface = nullptr;
-  delete a2dp_sink;
+  if (software_hal_interface != nullptr) {
+    auto a2dp_sink = software_hal_interface->GetTransportInstance();
+    delete software_hal_interface;
+    software_hal_interface = nullptr;
+    delete a2dp_sink;
+  }
+
   if (offloading_hal_interface != nullptr) {
-    a2dp_sink = offloading_hal_interface->GetTransportInstance();
+    auto a2dp_sink = offloading_hal_interface->GetTransportInstance();
     delete offloading_hal_interface;
     offloading_hal_interface = nullptr;
     delete a2dp_sink;

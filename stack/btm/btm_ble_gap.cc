@@ -63,7 +63,10 @@
 
 #define BTM_EXT_BLE_RMT_NAME_TIMEOUT_MS (30 * 1000)
 #define MIN_ADV_LENGTH 2
-#define BTM_VSC_CHIP_CAPABILITY_RSP_LEN_L_RELEASE 9
+#define BTM_VSC_CHIP_CAPABILITY_RSP_LEN 9
+#define BTM_VSC_CHIP_CAPABILITY_RSP_LEN_L_RELEASE \
+  BTM_VSC_CHIP_CAPABILITY_RSP_LEN
+#define BTM_VSC_CHIP_CAPABILITY_RSP_LEN_M_RELEASE 15
 #define BTM_VSC_CHIP_CAPABILITY_RSP_LEN_S_RELEASE 25
 #define BTM_QBCE_READ_REMOTE_QLL_SUPPORTED_FEATURE_LEN 3
 
@@ -637,6 +640,7 @@ static void btm_ble_vendor_capability_vsc_cmpl_cback(
     BTM_TRACE_DEBUG("%s: Status = 0x%02x (0 is success)", __func__, status);
     return;
   }
+  CHECK(p_vcs_cplt_params->param_len > BTM_VSC_CHIP_CAPABILITY_RSP_LEN);
   STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.adv_inst_max, p);
   STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.rpa_offloading, p);
   STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.tot_scan_results_strg, p);
@@ -654,9 +658,10 @@ static void btm_ble_vendor_capability_vsc_cmpl_cback(
 
   if (btm_cb.cmn_ble_vsc_cb.version_supported >=
       BTM_VSC_CHIP_CAPABILITY_M_VERSION) {
+    CHECK(p_vcs_cplt_params->param_len >= BTM_VSC_CHIP_CAPABILITY_RSP_LEN_M_RELEASE);
     STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.total_trackable_advertisers, p);
-    STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.extended_scan_support, p);
-    STREAM_TO_UINT16(btm_cb.cmn_ble_vsc_cb.debug_logging_supported, p);
+    STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.extended_scan_support, p);
+    STREAM_TO_UINT8(btm_cb.cmn_ble_vsc_cb.debug_logging_supported, p);
   }
 
   if (btm_cb.cmn_ble_vsc_cb.version_supported >=
@@ -2364,7 +2369,7 @@ uint8_t btm_ble_is_discoverable(const RawAddress& bda,
   if (!adv_data.empty()) {
     const uint8_t* p_flag = AdvertiseDataParser::GetFieldByType(
         adv_data, BTM_BLE_AD_TYPE_FLAG, &data_len);
-    if (p_flag != NULL) {
+    if (p_flag != NULL && data_len != 0) {
       flag = *p_flag;
 
       if ((btm_cb.btm_inq_vars.inq_active & BTM_BLE_GENERAL_INQUIRY) &&
@@ -2508,6 +2513,33 @@ static void btm_ble_appearance_to_cod(uint16_t appearance, uint8_t* dev_class) {
   };
 }
 
+bool parse_adv_audio_uuids_from_adv_pkt (const uint8_t* ad, size_t ad_len,
+    uint8_t type) {
+  size_t position = 0;
+
+  while (position < ad_len) {
+    uint8_t len = ad[position];
+
+    if (len == 0) break;
+
+    if (position + len >= ad_len) break;
+
+    uint8_t adv_type = ad[position + 1];
+
+    if (adv_type == type) {
+      const uint8_t *p_uuid16 = ad + position + 2;
+      BTM_TRACE_DEBUG(" %s: position = %d, len = %d, p_uuid16 = %04x",
+            __func__, position, len, (p_uuid16[0] | (p_uuid16[1] << 8)));
+      if (((p_uuid16[0] | (p_uuid16[1] << 8)) == UUID_SERVCLASS_ADV_AUDIO_CONN)
+          || ((p_uuid16[0] | (p_uuid16[1] << 8)) == UUID_SERVCLASS_ADV_AUDIO_CONN_LESS)) {
+        return true;
+      }
+    }
+    position += len + 1; /* skip the length of data */
+
+  }
+  return false;
+}
 /**
  * Update adv packet information into inquiry result.
  */
@@ -2552,7 +2584,7 @@ void btm_ble_update_inq_result(tINQ_DB_ENT* p_i, uint8_t addr_type,
   if (!data.empty()) {
     const uint8_t* p_flag =
         AdvertiseDataParser::GetFieldByType(data, BTM_BLE_AD_TYPE_FLAG, &len);
-    if (p_flag != NULL) p_cur->flag = *p_flag;
+    if (p_flag != NULL && len != 0) p_cur->flag = *p_flag;
   }
 
   if (!data.empty()) {
@@ -2600,23 +2632,17 @@ void btm_ble_update_inq_result(tINQ_DB_ENT* p_i, uint8_t addr_type,
       }
     }
 #ifdef ADV_AUDIO_FEATURE
-    p_uuid16 = AdvertiseDataParser::GetFieldByType(
-      data, 0x16, &len);
-    if (p_uuid16 != NULL) {
-      uint8_t i;
-      for (i = 0; i + 2 <= len; i = i + 2) {
-        if (controller_get_interface()->is_adv_audio_supported()) {
-          /* if this BLE device support ADV AUDIO over LE, set ADV AUDIO Major
-           * in class of device */
-          if (((p_uuid16[i] | (p_uuid16[i + 1] << 8)) == UUID_SERVCLASS_ADV_AUDIO_CONN)
-              || ((p_uuid16[i] | (p_uuid16[i + 1] << 8)) == UUID_SERVCLASS_ADV_AUDIO_CONN_LESS)) {
-            VLOG(1) << __func__ << " updated to ADV AUDIO COD PROP";
-            p_cur->dev_class[0] = 0;
-            p_cur->dev_class[1] = BTM_COD_MAJOR_ADV_AUDIO;
-            p_cur->dev_class[2] = 0;
-            break;
-          }
-        }
+    bool is_adv_audio_support = parse_adv_audio_uuids_from_adv_pkt
+      (data.data(),data.size(), 0x16);
+    if (controller_get_interface()->is_adv_audio_supported()) {
+      /* if this BLE device support ADV AUDIO over LE, set ADV AUDIO Major
+       * in class of device */
+      if (is_adv_audio_support) {
+        VLOG(1) << __func__ << " updated to ADV AUDIO COD PROP";
+        p_cur->dev_class[0] = 0;
+        p_cur->dev_class[1] = BTM_COD_MAJOR_ADV_AUDIO;
+        p_cur->dev_class[2] = 0;
+        p_cur->is_adv_audio = true;
       }
     }
 #endif
@@ -2705,8 +2731,9 @@ void btm_ble_process_ext_adv_pkt(uint8_t data_len, uint8_t* data) {
   /* Extract the number of reports in this event. */
   STREAM_TO_UINT8(num_reports, p);
 
+  constexpr int extended_report_header_size = 24;
   while (num_reports--) {
-    if (p > data + data_len) {
+    if (p + extended_report_header_size > data + data_len) {
       // TODO(jpawlowski): we should crash the stack here
       BTM_TRACE_ERROR(
           "Malformed LE Extended Advertising Report Event from controller - "
@@ -2770,8 +2797,9 @@ void btm_ble_process_adv_pkt(uint8_t data_len, uint8_t* data) {
   /* Extract the number of reports in this event. */
   STREAM_TO_UINT8(num_reports, p);
 
+  constexpr int report_header_size = 10;
   while (num_reports--) {
-    if (p > data + data_len) {
+    if (p + report_header_size > data + data_len) {
       // TODO(jpawlowski): we should crash the stack here
       BTM_TRACE_ERROR("Malformed LE Advertising Report Event from controller");
       return;
@@ -2937,6 +2965,18 @@ static void btm_ble_process_adv_pkt_cont(
     (&p_i->inq_info.results)->include_rsi = true;
   }
 
+  if (btm_cb.is_csip_opportunistic_scan_enabled && btm_cb.p_csip_scan_cb) {
+      uint8_t data_len = 0;
+      const uint8_t* g_data = NULL;
+      g_data = AdvertiseDataParser::GetFieldByType(adv_data, BTM_CSIP_RSI_TYPE,
+                                                   &data_len);
+      if (g_data && data_len == BTM_CSIP_RSI_LEN) {
+         uint8_t gid_data[BTM_CSIP_RSI_LEN] = {};
+         memcpy(gid_data, g_data, BTM_CSIP_RSI_LEN);
+         (*btm_cb.p_csip_scan_cb) (bda, (uint8_t *)gid_data);
+      }
+  }
+
   uint8_t result = btm_ble_is_discoverable(bda, adv_data);
   if (result == 0) {
     cache.Clear(addr_type, bda);
@@ -2969,18 +3009,6 @@ static void btm_ble_process_adv_pkt_cont(
 
       btm_acl_update_busy_level(BTM_BLI_INQ_DONE_EVT);
     }
-  }
-
-  if (btm_cb.is_csip_opportunistic_scan_enabled && btm_cb.p_csip_scan_cb) {
-      uint8_t data_len = 0;
-      const uint8_t* g_data = NULL;
-      g_data = AdvertiseDataParser::GetFieldByType(adv_data, BTM_CSIP_RSI_TYPE,
-                                                   &data_len);
-      if (g_data && data_len == BTM_CSIP_RSI_LEN) {
-         uint8_t gid_data[BTM_CSIP_RSI_LEN] = {};
-         memcpy(gid_data, g_data, BTM_CSIP_RSI_LEN);
-         (*btm_cb.p_csip_scan_cb) (bda, (uint8_t *)gid_data);
-      }
   }
 
   tBTM_INQ_RESULTS_CB* p_inq_results_cb = p_inq->p_inq_results_cb;

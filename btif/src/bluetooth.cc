@@ -160,12 +160,25 @@ static bool is_profile(const char* p1, const char* p2) {
  *
  ****************************************************************************/
 
+
+const std::vector<std::string> get_allowed_bt_package_name(void);
+void handle_migration(const std::string& dst,
+                      const std::vector<std::string>& allowed_bt_package_name);
+
+
 static int init(bt_callbacks_t* callbacks, bool start_restricted,
                 bool is_common_criteria_mode, int config_compare_result,
-                const char** init_flags, bool is_atv) {
+                const char** init_flags, bool is_atv,
+                const char* user_data_directory) {
   LOG_INFO(LOG_TAG, "QTI OMR1 stack: %s: start restricted = %d : common criteria mode = %d,"
            " config compare result = %d", __func__, start_restricted, is_common_criteria_mode,
            config_compare_result);
+
+  if (user_data_directory != nullptr) {
+    handle_migration(std::string(user_data_directory),
+                     get_allowed_bt_package_name());
+  }
+
 
   if (interface_ready()) return BT_STATUS_DONE;
 
@@ -527,7 +540,6 @@ static bool allow_low_latency_audio(bool allowed, const RawAddress& address) {
   return false;
 }
 
-// KEYSTONE(Ic24dd31c55ee70bfaf056728795d388aead1efb6,b/235138102)
 static int clear_event_mask() {
   LOG_VERBOSE(LOG_TAG, "%s", __func__);
   return BT_STATUS_SUCCESS;
@@ -561,6 +573,17 @@ static int set_default_event_mask() {
 }
 
 static int restore_filter_accept_list() {
+  return BT_STATUS_SUCCESS;
+}
+
+static int allow_wake_by_hid() {
+  if (!interface_ready()) return BT_STATUS_NOT_READY;
+  return BT_STATUS_SUCCESS;
+}
+
+static int set_event_filter_connection_setup_all_devices() {
+  // TODO(b/247376698) fill rest of stub
+  if (!interface_ready()) return BT_STATUS_NOT_READY;
   return BT_STATUS_SUCCESS;
 }
 
@@ -609,6 +632,8 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     clear_filter_accept_list,
     disconnect_all_acls,
     le_rand,
+    set_event_filter_connection_setup_all_devices,
+    allow_wake_by_hid,
     restore_filter_accept_list,
     set_default_event_mask,
     set_event_filter_inquiry_result_all_devices,

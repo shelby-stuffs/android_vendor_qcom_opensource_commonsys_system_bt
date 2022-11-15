@@ -769,7 +769,13 @@ void bta_gattc_set_discover_st(tBTA_GATTC_SERV* p_srcb) {
   for (i = 0; i < BTA_GATTC_CLCB_MAX; i++) {
     if (bta_gattc_cb.clcb[i].p_srcb == p_srcb) {
       bta_gattc_cb.clcb[i].status = GATT_SUCCESS;
-      bta_gattc_cb.clcb[i].state = BTA_GATTC_DISCOVER_ST;
+      if (p_srcb->srvc_hdl_db_hash &&
+          (bta_gattc_cb.clcb[i].state == BTA_GATTC_W4_CONN_ST)) {
+        bta_gattc_cb.clcb[i].state = BTA_GATTC_DISCOVER_ST_RC;
+      }
+      else {
+        bta_gattc_cb.clcb[i].state = BTA_GATTC_DISCOVER_ST;
+      }
       bta_gattc_cb.clcb[i].request_during_discovery =
           BTA_GATTC_DISCOVER_REQ_NONE;
     }
@@ -851,9 +857,19 @@ void bta_gattc_start_discover(tBTA_GATTC_CLCB* p_clcb,
       p_clcb->p_srcb->update_count = 0;
       p_clcb->p_srcb->state = BTA_GATTC_SERV_DISC_ACT;
 
+      uint16_t manufacturer = 0;
+      uint16_t lmp_sub_version = 0;
+      uint8_t lmp_version = 0;
+
+      BTM_ReadRemoteVersionByTransport(p_clcb->bda, &lmp_version,
+          &manufacturer, &lmp_sub_version, BTA_TRANSPORT_LE);
+      VLOG(1) << __func__ << ": lmp_version" << +lmp_version
+              << ": lmp_sub_version" << +lmp_sub_version;
+
       /* read db hash if db hash characteristic exists */
       if (bta_gattc_is_robust_caching_enabled() &&
           p_clcb->p_srcb->srvc_hdl_db_hash &&
+          (lmp_version >= HCI_PROTO_VERSION_5_1) &&
           bta_gattc_read_db_hash(p_clcb, is_svc_chg)) {
         LOG(INFO) << __func__
                   << ": pending service discovery, read db hash first";
@@ -1110,17 +1126,33 @@ void bta_gattc_read_cmpl(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_OP_CMPL* p_data) {
 }
 
 /** write complete */
-void bta_gattc_write_cmpl(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_OP_CMPL* p_data) {
+static void bta_gattc_write_cmpl(tBTA_GATTC_CLCB* p_clcb,
+                                 const tBTA_GATTC_OP_CMPL* p_data) {
   GATT_WRITE_OP_CB cb = p_clcb->p_q_cmd->api_write.write_cb;
   void* my_cb_data = p_clcb->p_q_cmd->api_write.write_cb_data;
 
-  osi_free_and_reset((void**)&p_clcb->p_q_cmd);
-
   if (cb) {
-    cb(p_clcb->bta_conn_id, p_data->status, p_data->p_cmpl->att_value.handle,
-       p_data->p_cmpl->att_value.len, p_data->p_cmpl->att_value.value,
-       my_cb_data);
+    if (p_data->status == 0 &&
+        p_clcb->p_q_cmd->api_write.write_type == BTA_GATTC_WRITE_PREPARE) {
+      LOG_DEBUG(LOG_TAG, "Handling prepare write success response: handle 0x%04x",
+                p_data->p_cmpl->att_value.handle);
+      /* If this is successful Prepare write, lets provide to the callback the
+       * data provided by server */
+      cb(p_clcb->bta_conn_id, p_data->status, p_data->p_cmpl->att_value.handle,
+         p_data->p_cmpl->att_value.len, p_data->p_cmpl->att_value.value,
+         my_cb_data);
+    } else {
+      LOG_DEBUG(LOG_TAG, "Handling write response type: %d: handle 0x%04x",
+                p_clcb->p_q_cmd->api_write.write_type,
+                p_data->p_cmpl->att_value.handle);
+      /* Otherwise, provide data which were intended to write. */
+      cb(p_clcb->bta_conn_id, p_data->status, p_data->p_cmpl->att_value.handle,
+         p_clcb->p_q_cmd->api_write.len, p_clcb->p_q_cmd->api_write.p_value,
+         my_cb_data);
+    }
   }
+
+  osi_free_and_reset((void**)&p_clcb->p_q_cmd);
 }
 
 /** execute write complete */
