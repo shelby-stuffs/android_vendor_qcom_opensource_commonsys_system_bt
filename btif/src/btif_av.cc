@@ -613,9 +613,11 @@ static void btif_av_disconnect_queue_advance_by_uuid(const RawAddress* bd_addr) 
 static void btif_report_connection_state(btav_connection_state_t state,
                                          RawAddress* bd_addr) {
   if (bt_av_sink_callbacks != NULL) {
-    HAL_CBACK(bt_av_sink_callbacks, connection_state_cb, *bd_addr, state);
+    HAL_CBACK(bt_av_sink_callbacks, connection_state_cb, *bd_addr, state,
+      btav_error_t{.status = bt_status_t::BT_STATUS_SUCCESS, .error_code = BTA_AV_SUCCESS});
   } else if (bt_av_src_callbacks != NULL) {
-    HAL_CBACK(bt_av_src_callbacks, connection_state_cb, *bd_addr, state);
+    HAL_CBACK(bt_av_src_callbacks, connection_state_cb, *bd_addr, state,
+      btav_error_t{.status = bt_status_t::BT_STATUS_SUCCESS, .error_code = BTA_AV_SUCCESS});
   }
 }
 
@@ -1395,10 +1397,12 @@ static bool btif_av_state_opening_handler(btif_sm_event_t event, void* p_data,
       /* inform the application that we are entering connecting state */
       if (bt_av_sink_callbacks != NULL)
         HAL_CBACK(bt_av_sink_callbacks, connection_state_cb,
-                  btif_av_cb[index].peer_bda, BTAV_CONNECTION_STATE_CONNECTING);
+                  btif_av_cb[index].peer_bda, BTAV_CONNECTION_STATE_CONNECTING,
+                  btav_error_t{.status = bt_status_t::BT_STATUS_SUCCESS, .error_code = BTA_AV_SUCCESS});
       else if (bt_av_src_callbacks != NULL)
         HAL_CBACK(bt_av_src_callbacks, connection_state_cb,
-                  btif_av_cb[index].peer_bda, BTAV_CONNECTION_STATE_CONNECTING);
+                  btif_av_cb[index].peer_bda, BTAV_CONNECTION_STATE_CONNECTING,
+                  btav_error_t{.status = bt_status_t::BT_STATUS_SUCCESS, .error_code = BTA_AV_SUCCESS});
       break;
 
     case BTIF_SM_EXIT_EVT:

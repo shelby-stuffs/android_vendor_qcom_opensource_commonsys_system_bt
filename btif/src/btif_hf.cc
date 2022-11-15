@@ -1016,7 +1016,7 @@ class HeadsetInterface : Interface {
                    bool inband_ringing_enabled) override;
   bt_status_t Connect(RawAddress* bd_addr) override;
   bt_status_t Disconnect(RawAddress* bd_addr) override;
-  bt_status_t ConnectAudio(RawAddress* bd_addr) override;
+  bt_status_t ConnectAudio(RawAddress* bd_addr, bool force_cvsd) override;
   bt_status_t DisconnectAudio(RawAddress* bd_addr) override;
   bt_status_t isNoiseReductionSupported(RawAddress* bd_addr) override;
   bt_status_t isVoiceRecognitionSupported(RawAddress* bd_addr) override;
@@ -1229,7 +1229,7 @@ bt_status_t HeadsetInterface::Disconnect(RawAddress* bd_addr) {
  * Returns         bt_status_t
  *
  ******************************************************************************/
-bt_status_t HeadsetInterface::ConnectAudio(RawAddress* bd_addr) {
+bt_status_t HeadsetInterface::ConnectAudio(RawAddress* bd_addr, bool force_cvsd) {
   CHECK_BTHF_INIT();
 
   int idx = btif_hf_idx_by_bdaddr(bd_addr);

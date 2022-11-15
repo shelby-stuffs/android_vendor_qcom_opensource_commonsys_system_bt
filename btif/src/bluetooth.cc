@@ -637,6 +637,7 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     restore_filter_accept_list,
     set_default_event_mask,
     set_event_filter_inquiry_result_all_devices,
+    nullptr,
 };
 
 void invoke_oob_data_request_cb(tBT_TRANSPORT t, bool valid, Octet16 c,
