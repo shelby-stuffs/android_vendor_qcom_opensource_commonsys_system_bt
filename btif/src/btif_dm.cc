@@ -752,6 +752,8 @@ void bond_state_changed(bt_status_t status, const RawAddress& bd_addr,
     update_pce_entry_after_cancelling_bonding(bd_addr);
     // Update Map 1.4 entry, set rebonded to true
     update_mce_entry_after_cancelling_bonding(bd_addr);
+    // remove remote GATT database
+    BTA_GATTC_ResetGattDb(bd_addr);
   }
 }
 
