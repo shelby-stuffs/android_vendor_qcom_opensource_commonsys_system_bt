@@ -832,7 +832,7 @@ static void btif_update_remote_properties(const RawAddress& bdaddr,
   /* class of device */
   cod = devclass2uint(dev_class);
   BTIF_TRACE_DEBUG("%s cod is 0x%06x", __func__, cod);
-  if (cod == 0) {
+  if ((cod == 0) || (cod == COD_UNCLASSIFIED)) {
     /* Try to retrieve cod from storage */
     BTIF_TRACE_DEBUG("%s cod is 0, checking cod from storage", __func__);
     BTIF_STORAGE_FILL_PROPERTY(&properties[num_properties],
