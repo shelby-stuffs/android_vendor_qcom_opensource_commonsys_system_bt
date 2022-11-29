@@ -2944,14 +2944,22 @@ static void bta_dm_remname_cback(void* p) {
       (p_remote_name->bd_addr == bta_dm_search_cb.peer_bdaddr)) {
     BTM_SecDeleteRmtNameNotifyCallback(&bta_dm_service_search_remname_cback);
   } else {
-    VLOG(1) << "bta_dm_remname_cback ,rnr complete for diff device,return"
-    << " search_cb.peer_dbaddr:" << bta_dm_search_cb.peer_bdaddr
-    << " p_remote_name_bda=" << p_remote_name->bd_addr;
-    // if we got a different response, ignore it
+    VLOG(1) << "bta_dm_remname_cback ,rnr complete for diff device,return";
+    // if we got a different response, maybe ignore it
     // we will have made a request directly from BTM_ReadRemoteDeviceName so we
     // expect a dedicated response for us
-    LOG_INFO(LOG_TAG, "ignoring remote name response in DM callback since it's for the wrong bd_addr");
-    return;
+    if (p_remote_name->hci_status == HCI_ERR_CONNECTION_EXISTS) {
+      BTM_SecDeleteRmtNameNotifyCallback(
+          &bta_dm_service_search_remname_cback);
+      VLOG(1) << "Assume command failed due to disconnection hci_status:"
+      << p_remote_name->hci_status
+      << " p_remote_name_bda=" << p_remote_name->bd_addr;
+    } else {
+      VLOG(1) << "Ignored remote name response for the wrong address exp:"
+      << " search_cb.peer_dbaddr:" << bta_dm_search_cb.peer_bdaddr
+      << " act: p_remote_name_bda=" << p_remote_name->bd_addr;
+      return;
+    }
   }
 
   /* remote name discovery is done but it could be failed */
