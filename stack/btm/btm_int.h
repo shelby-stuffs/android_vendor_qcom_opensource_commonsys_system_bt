@@ -106,7 +106,7 @@ extern void btm_read_tx_power_timeout(void* data);
 extern void btm_read_tx_power_complete(uint8_t* p, bool is_ble);
 
 extern void btm_read_link_quality_timeout(void* data);
-extern void btm_read_link_quality_complete(uint8_t* p);
+extern void btm_read_link_quality_complete(uint8_t* p, uint16_t evt_len);
 
 extern tBTM_STATUS btm_set_packet_types(tACL_CONN* p, uint16_t pkt_types);
 extern void btm_process_clk_off_comp_evt(uint16_t hci_handle,
