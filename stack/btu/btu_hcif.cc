@@ -165,7 +165,7 @@ static void btu_hcif_ssr_evt(uint8_t* p, uint16_t evt_len);
 #endif /* BTM_SSR_INCLUDED == TRUE */
 
 static void btu_ble_ll_conn_complete_evt(uint8_t* p, uint16_t evt_len);
-static void btu_ble_read_remote_feat_evt(uint8_t* p);
+static void btu_ble_read_remote_feat_evt(uint8_t* p, uint8_t length);
 static void btu_ble_ll_conn_param_upd_evt(uint8_t* p, uint16_t evt_len);
 static void btu_ble_proc_ltk_req(uint8_t* p);
 static void btu_hcif_encryption_key_refresh_cmpl_evt(uint8_t* p);
@@ -391,7 +391,7 @@ void btu_hcif_process_event(UNUSED_ATTR uint8_t controller_id, BT_HDR* p_msg) {
           btu_ble_ll_conn_param_upd_evt(p, ble_evt_len);
           break;
         case HCI_BLE_READ_REMOTE_FEAT_CMPL_EVT:
-          btu_ble_read_remote_feat_evt(p);
+          btu_ble_read_remote_feat_evt(p, ble_evt_len);
           break;
         case HCI_BLE_LTK_REQ_EVT: /* received only at slave device */
           btu_ble_proc_ltk_req(p);
@@ -2080,8 +2080,8 @@ static void btu_ble_ll_conn_param_upd_evt(uint8_t* p, uint16_t evt_len) {
   gatt_notify_conn_update(handle & 0x0FFF, interval, latency, timeout, status);
 }
 
-static void btu_ble_read_remote_feat_evt(uint8_t* p) {
-  btm_ble_read_remote_features_complete(p);
+static void btu_ble_read_remote_feat_evt(uint8_t* p, uint8_t length) {
+  btm_ble_read_remote_features_complete(p, length);
 }
 
 static void btu_ble_proc_ltk_req(uint8_t* p) {
