@@ -36,6 +36,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "bta_hh_co.h"
 #include "bt_common.h"
 #include "bta_api.h"
 #include "btif_common.h"
@@ -1597,6 +1598,39 @@ static bt_status_t get_report(RawAddress* bd_addr,
 
 /*******************************************************************************
  *
+ * Function         get_report_reply
+ *
+ * Description      Send a REPORT_REPLY/FEATURE_ANSWER to HID driver.
+ *
+ * Returns         bt_status_t
+ *
+ ******************************************************************************/
+static bt_status_t get_report_reply(RawAddress* bd_addr, bthh_status_t status,
+                                    char* report, uint16_t size) {
+  CHECK_BTHH_INIT();
+  btif_hh_device_t* p_dev;
+
+  VLOG(1) << __func__ << " BTHH: addr=" << *bd_addr;
+
+  if (btif_hh_cb.status == BTIF_HH_DISABLED) {
+    BTIF_TRACE_ERROR("%s: Error, HH status = %d", __func__, btif_hh_cb.status);
+    return BT_STATUS_FAIL;
+  }
+
+  p_dev = btif_hh_find_connected_dev_by_bda(*bd_addr);
+  if (p_dev == NULL) {
+    LOG(ERROR) << " Error, device" << *bd_addr << " not opened";
+    return BT_STATUS_FAIL;
+  }
+
+  bta_hh_co_get_rpt_rsp(p_dev->dev_handle, (tBTA_HH_STATUS)status,
+                        (uint8_t*)report, size);
+  return BT_STATUS_SUCCESS;
+}
+
+
+/*******************************************************************************
+ *
  * Function         set_report
  *
  * Description      Send a SET_REPORT to HID device.
@@ -1758,6 +1792,7 @@ static const bthh_interface_t bthhInterface = {
     get_idle_time,
     set_idle_time,
     get_report,
+    get_report_reply,
     set_report,
     send_data,
     cleanup,
