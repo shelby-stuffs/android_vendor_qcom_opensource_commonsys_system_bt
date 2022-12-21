@@ -424,6 +424,7 @@ extern tBTA_GATTC_CLCB* bta_gattc_clcb_alloc(tGATT_IF client_if,
                                              const RawAddress& remote_bda,
                                              tBTA_TRANSPORT transport);
 extern void bta_gattc_clcb_dealloc(tBTA_GATTC_CLCB* p_clcb);
+extern void bta_gattc_server_disconnected(tBTA_GATTC_SERV* p_srcb);
 extern tBTA_GATTC_CLCB* bta_gattc_find_alloc_clcb(tGATT_IF client_if,
                                                   const RawAddress& remote_bda,
                                                   tBTA_TRANSPORT transport);
