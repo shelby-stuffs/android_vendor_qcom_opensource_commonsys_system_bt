@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #pragma once
@@ -65,6 +69,9 @@ typedef struct {
   void (*parse_ble_read_local_supported_features_response)(
       BT_HDR* response, bt_device_features_t* supported_features);
 
+  void (*parse_ble_read_antenna_info_response)(
+        BT_HDR* response, bt_antenna_info_t* antenna_info);
+
   void (*parse_ble_read_resolving_list_size_response)(
       BT_HDR* response, uint8_t* resolving_list_size_ptr);
 
@@ -106,7 +113,10 @@ typedef struct {
   void (*parse_set_min_encryption_key_size_response)(BT_HDR* response);
   void (*parse_qll_read_local_supported_features_response)(BT_HDR* response,
                  bt_device_qll_local_supported_features_t* supported_features);
-
+#ifdef VLOC_FEATURE
+  void (*parse_ble_vloc_read_local_supported_capabilities)(
+    BT_HDR* response, bt_device_vloc_local_features_t* local_vloc_supported_features);
+#endif
 } hci_packet_parser_t;
 
 const hci_packet_parser_t* hci_packet_parser_get_interface();

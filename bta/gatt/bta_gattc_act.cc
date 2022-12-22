@@ -76,6 +76,7 @@
 #include "device/include/interop.h"
 #include "stack/btm/btm_int_types.h"
 #include "btif/include/btif_storage.h"
+#include "btm_int.h"
 
 #if (BTA_HH_LE_INCLUDED == TRUE)
 #include "bta_hh_int.h"
@@ -597,12 +598,9 @@ void bta_gattc_conn(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
       p_clcb->p_srcb->state != BTA_GATTC_SERV_IDLE) {
     if (p_clcb->p_srcb->state == BTA_GATTC_SERV_IDLE) {
       p_clcb->p_srcb->state = BTA_GATTC_SERV_LOAD;
-      // Consider the case that if GATT Server is changed, but no service
-      // changed indication is received, the database might be out of date. So
-      // if robust caching is enabled, any time when connection is established,
-      // always check the db hash first, not just load the stored database.
+      // For bonded devices, read cache directly, and back to connected state.
       gatt::Database db = bta_gattc_cache_load(p_clcb->p_srcb->server_bda);
-      if (!bta_gattc_is_robust_caching_enabled() && !db.IsEmpty()) {
+      if (!db.IsEmpty() && btm_sec_is_a_bonded_dev(p_clcb->p_srcb->server_bda)) {
         p_clcb->p_srcb->gatt_database = db;
         p_clcb->p_srcb->state = BTA_GATTC_SERV_IDLE;
         bta_gattc_reset_discover_st(p_clcb->p_srcb, GATT_SUCCESS);
@@ -896,7 +894,8 @@ void bta_gattc_disc_cmpl(tBTA_GATTC_CLCB* p_clcb,
                          UNUSED_ATTR tBTA_GATTC_DATA* p_data) {
   tBTA_GATTC_DATA* p_q_cmd = p_clcb->p_q_cmd;
 
-  VLOG(1) << __func__ << ": conn_id=" << loghex(p_clcb->bta_conn_id);
+  VLOG(1) << __func__ << ": conn_id=" << loghex(p_clcb->bta_conn_id)
+                      << ", status = " << +p_clcb->status;
 
   if (p_clcb->transport == BTA_TRANSPORT_LE) {
     if (p_clcb->p_srcb &&
@@ -917,6 +916,12 @@ void bta_gattc_disc_cmpl(tBTA_GATTC_CLCB* p_clcb,
       p_clcb->p_srcb->gatt_database.Clear();
       /* used to reset cache in application */
       bta_gattc_cache_reset(p_clcb->p_srcb->server_bda);
+    }
+    uint16_t p_conn_id;
+    if (!GATT_GetConnIdIfConnected((uint8_t)p_clcb->bta_conn_id, p_clcb->bda,
+                                  &p_conn_id, p_clcb->transport)) {
+      osi_free_and_reset((void**)&p_q_cmd);
+      p_clcb->p_q_cmd = NULL;
     }
   }
 

@@ -1016,7 +1016,7 @@ class HeadsetInterface : Interface {
                    bool inband_ringing_enabled) override;
   bt_status_t Connect(RawAddress* bd_addr) override;
   bt_status_t Disconnect(RawAddress* bd_addr) override;
-  bt_status_t ConnectAudio(RawAddress* bd_addr) override;
+  bt_status_t ConnectAudio(RawAddress* bd_addr, bool force_cvsd) override;
   bt_status_t DisconnectAudio(RawAddress* bd_addr) override;
   bt_status_t isNoiseReductionSupported(RawAddress* bd_addr) override;
   bt_status_t isVoiceRecognitionSupported(RawAddress* bd_addr) override;
@@ -1045,6 +1045,7 @@ class HeadsetInterface : Interface {
                                bthf_call_state_t call_setup_state,
                                const char* number, bthf_call_addrtype_t type,
                                const char* name, RawAddress* bd_addr) override;
+  bt_status_t SetScoOffloadEnabled(bool value) override;
 
   void Cleanup() override;
   bt_status_t SetScoAllowed(bool value) override;
@@ -1228,7 +1229,7 @@ bt_status_t HeadsetInterface::Disconnect(RawAddress* bd_addr) {
  * Returns         bt_status_t
  *
  ******************************************************************************/
-bt_status_t HeadsetInterface::ConnectAudio(RawAddress* bd_addr) {
+bt_status_t HeadsetInterface::ConnectAudio(RawAddress* bd_addr, bool force_cvsd) {
   CHECK_BTHF_INIT();
 
   int idx = btif_hf_idx_by_bdaddr(bd_addr);
@@ -2234,6 +2235,10 @@ bt_status_t HeadsetInterface::PhoneStateChange(
         IOT_CONF_KEY_HFP_SCO_CONN_COUNT);
 #endif
   return status;
+}
+
+bt_status_t HeadsetInterface::SetScoOffloadEnabled(bool value) {
+    return BT_STATUS_SUCCESS;
 }
 
 /*******************************************************************************

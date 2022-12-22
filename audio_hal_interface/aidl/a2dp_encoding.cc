@@ -157,7 +157,7 @@ void A2dpTransport::StopRequest() {
 bool A2dpTransport::GetPresentationPosition(uint64_t* remote_delay_report_ns,
                                             uint64_t* total_bytes_read,
                                             timespec* data_position) {
-  *remote_delay_report_ns = remote_delay_report_ * 100000u;
+  *remote_delay_report_ns = remote_delay_report_ * 100000ULL;
   *total_bytes_read = total_bytes_read_;
   *data_position = data_position_;
   LOG(INFO) << __func__ << "AIDL: delay=" << remote_delay_report_
@@ -238,7 +238,7 @@ BluetoothAudioCtrlAck a2dp_ack_to_bt_audio_ctrl_ack(tA2DP_CTRL_ACK ack) {
     case A2DP_CTRL_ACK_INCALL_FAILURE:
       return BluetoothAudioCtrlAck::FAILURE_BUSY;
     case A2DP_CTRL_ACK_DISCONNECT_IN_PROGRESS:
-      return BluetoothAudioCtrlAck::FAILURE_DISCONNECTING;
+      return BluetoothAudioCtrlAck::FAILURE_UNSUPPORTED;
     case A2DP_CTRL_ACK_UNSUPPORTED: /* Offloading but resource failure */
       return BluetoothAudioCtrlAck::FAILURE_UNSUPPORTED;
     case A2DP_CTRL_ACK_FAILURE:

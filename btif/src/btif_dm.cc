@@ -48,6 +48,9 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
  ******************************************************************************/
 
 /*******************************************************************************
@@ -705,6 +708,10 @@ void bond_state_changed(bt_status_t status, const RawAddress& bd_addr,
      bta_dm_reset_adv_audio_pairing_info(bd_addr);
    }
   }
+
+  if (state == BT_BOND_STATE_NONE) {
+    btif_stack_dev_unpaired(bd_addr);
+  }
 #endif
 
   if ((pairing_cb.state == state) && (state == BT_BOND_STATE_BONDING)) {
@@ -745,6 +752,8 @@ void bond_state_changed(bt_status_t status, const RawAddress& bd_addr,
     update_pce_entry_after_cancelling_bonding(bd_addr);
     // Update Map 1.4 entry, set rebonded to true
     update_mce_entry_after_cancelling_bonding(bd_addr);
+    // remove remote GATT database
+    BTA_GATTC_ResetGattDb(bd_addr);
   }
 }
 
@@ -892,8 +901,11 @@ static void btif_dm_cb_create_bond(const RawAddress& bd_addr,
   if (btm_cb.pairing_state != BTM_PAIR_STATE_IDLE ) {
     BTIF_TRACE_DEBUG("%s: btm_cb.pairing_state = %d, one pairing in progress ",
                       __func__, btm_cb.pairing_state);
-    auto tmp = bd_addr;
-    HAL_CBACK(bt_hal_cbacks, bond_state_changed_cb, BT_STATUS_FAIL, &tmp, BT_BOND_STATE_NONE, 0);
+    if (pairing_cb.bd_addr != bd_addr) {
+      auto tmp = bd_addr;
+      HAL_CBACK(bt_hal_cbacks, bond_state_changed_cb, BT_STATUS_FAIL, &tmp,
+                BT_BOND_STATE_NONE, 0);
+    }
     return;
   }
 
@@ -1648,7 +1660,7 @@ static void btif_dm_search_devices_evt(uint16_t event, char* p_param) {
         if (check_adv_audio_cod(cod)) {
           BTIF_TRACE_DEBUG("%s Add to ADV Audio Database %s", __func__,
               bdaddr.ToString().c_str());
-          adv_audio_device_db[bdaddr] = cod;
+          bta_dm_update_adv_audio_db(bdaddr);
         }
 #endif
         if (cod != 0) {
@@ -2174,7 +2186,6 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
 #endif
       btif_hearing_aid_get_interface()->RemoveDevice(bd_addr);
       btif_storage_remove_bonded_device(&bd_addr);
-      btif_stack_dev_unpaired(bd_addr);
       BTA_DmResetPairingflag(bd_addr);
       bond_state_changed(BT_STATUS_SUCCESS, bd_addr, BT_BOND_STATE_NONE);
       break;
@@ -2225,7 +2236,8 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
       btif_update_remote_version_property(&bd_addr);
 
       HAL_CBACK(bt_hal_cbacks, acl_state_changed_cb, BT_STATUS_SUCCESS,
-                &bd_addr, BT_ACL_STATE_CONNECTED, p_data->link_down.link_type, HCI_SUCCESS);
+                &bd_addr, BT_ACL_STATE_CONNECTED, p_data->link_down.link_type, HCI_SUCCESS,
+                bt_conn_direction_t::BT_CONN_DIRECTION_UNKNOWN);
       break;
 
     case BTA_DM_LINK_DOWN_EVT:
@@ -2267,9 +2279,24 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
      }
       BTIF_TRACE_DEBUG(
           "BTA_DM_LINK_DOWN_EVT. Sending BT_ACL_STATE_DISCONNECTED");
+      bt_conn_direction_t direction;
+      switch (btm_get_acl_disc_reason_code()) {
+        case HCI_ERR_PEER_USER:
+        case HCI_ERR_PEER_LOW_RESOURCES:
+        case HCI_ERR_PEER_POWER_OFF:
+          direction = bt_conn_direction_t::BT_CONN_DIRECTION_INCOMING;
+          break;
+        case HCI_ERR_CONN_CAUSE_LOCAL_HOST:
+        case HCI_ERR_HOST_REJECT_SECURITY:
+          direction = bt_conn_direction_t::BT_CONN_DIRECTION_OUTGOING;
+          break;
+        default:
+          direction = bt_conn_direction_t::BT_CONN_DIRECTION_UNKNOWN;
+      }
       HAL_CBACK(bt_hal_cbacks, acl_state_changed_cb, BT_STATUS_SUCCESS,
                 &bd_addr, BT_ACL_STATE_DISCONNECTED, p_data->link_down.link_type,
-                static_cast<bt_hci_error_code_t>(btm_get_acl_disc_reason_code()));
+                static_cast<bt_hci_error_code_t>(btm_get_acl_disc_reason_code()),
+                direction);
       break;
 
     case BTA_DM_HW_ERROR_EVT:

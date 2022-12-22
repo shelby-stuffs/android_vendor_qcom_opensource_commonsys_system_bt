@@ -41,6 +41,9 @@
 #include <hardware/bt_hf.h>
 #include <hardware/bt_hearing_aid.h>
 #include <hardware/bt_hf_client.h>
+#ifdef DIR_FINDING_FEATURE
+#include <hardware/bt_atp_locator.h>
+#endif
 #include <hardware/bt_hh.h>
 #include <hardware/bt_pan.h>
 #include <hardware/bt_rc_ext.h>
@@ -87,6 +90,9 @@
 
 using base::Bind;
 using bluetooth::hearing_aid::HearingAidInterface;
+#ifdef DIR_FINDING_FEATURE
+using bluetooth::atp_locator::AtpLocatorInterface;
+#endif
 
 /*******************************************************************************
  *  Static variables
@@ -141,6 +147,10 @@ extern btvendor_interface_t *btif_vendor_hf_get_interface();
 /* broadcast transmitter */
 extern ba_transmitter_interface_t *btif_bat_get_interface();
 extern btrc_vendor_ctrl_interface_t *btif_rc_vendor_ctrl_get_interface();
+
+#ifdef DIR_FINDING_FEATURE
+extern AtpLocatorInterface* btif_atp_locator_get_interface();
+#endif
 
 /*******************************************************************************
  *  Functions
@@ -469,6 +479,11 @@ static const void* get_profile_interface(const char* profile_id) {
   if (is_profile(profile_id, BT_PROFILE_HEARING_AID_ID))
     return btif_hearing_aid_get_interface();
 
+#ifdef DIR_FINDING_FEATURE
+  if (is_profile(profile_id, BT_PROFILE_ATP_LOCATOR_ID))
+    return btif_atp_locator_get_interface();
+#endif
+
   if (is_profile(profile_id, BT_KEYSTORE_ID))
     return bluetooth::bluetooth_keystore::getBluetoothKeystoreInterface();
   return get_external_profile_interface(profile_id);
@@ -568,7 +583,7 @@ static int set_event_filter_inquiry_result_all_devices() {
   return BT_STATUS_SUCCESS;
 }
 
-static int set_default_event_mask() {
+static int set_default_event_mask_except(uint64_t mask, uint64_t le_mask) {
   return BT_STATUS_SUCCESS;
 }
 
@@ -633,10 +648,11 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     disconnect_all_acls,
     le_rand,
     set_event_filter_connection_setup_all_devices,
-    allow_wake_by_hid,
+    set_default_event_mask_except,
     restore_filter_accept_list,
-    set_default_event_mask,
+    allow_wake_by_hid,
     set_event_filter_inquiry_result_all_devices,
+    nullptr,
 };
 
 void invoke_oob_data_request_cb(tBT_TRANSPORT t, bool valid, Octet16 c,

@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #pragma once
@@ -39,6 +43,7 @@ typedef struct {
   BT_HDR* (*make_ble_read_buffer_size)(void);
   BT_HDR* (*make_ble_read_supported_states)(void);
   BT_HDR* (*make_ble_read_local_supported_features)(void);
+  BT_HDR* (*make_ble_read_antenna_info)(void);
   BT_HDR* (*make_ble_read_resolving_list_size)(void);
   BT_HDR* (*make_ble_read_suggested_default_data_length)(void);
   BT_HDR* (*make_ble_read_maximum_advertising_data_length)(void);
@@ -58,6 +63,9 @@ typedef struct {
   BT_HDR* (*make_ble_write_rf_path_compensation)(uint16_t tx_value, uint16_t rx_value);
   BT_HDR* (*make_set_min_encryption_key_size)(uint8_t size);
   BT_HDR* (*make_qbce_read_qll_local_supported_features)(void);
+#ifdef VLOC_FEATURE
+  BT_HDR* (*make_ble_vloc_read_local_supported_capabilities)(void);
+#endif
 } hci_packet_factory_t;
 
 const hci_packet_factory_t* hci_packet_factory_get_interface();

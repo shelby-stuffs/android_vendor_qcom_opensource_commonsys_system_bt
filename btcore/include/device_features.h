@@ -35,6 +35,8 @@
 // by the local controller. See the bluetooth spec for bit indexes.
 typedef struct { uint8_t as_array[8]; } bt_device_features_t;
 
+typedef struct { uint8_t as_array[4]; } bt_antenna_info_t;
+
 typedef struct {
   uint8_t as_array[SOC_ADD_ON_FEATURES_MAX_SIZE];
 } bt_device_soc_add_on_features_t;
@@ -46,3 +48,8 @@ typedef struct {
 typedef struct {
    uint8_t as_array[QLL_LOCAL_SUPPORTED_FEATURES_MAX_SIZE];
 } bt_device_qll_local_supported_features_t;
+
+#ifdef VLOC_FEATURE
+#define VLOC_LOCAL_FEATURES_MAX_SIZE 22
+typedef struct { uint8_t as_array[VLOC_LOCAL_FEATURES_MAX_SIZE]; } bt_device_vloc_local_features_t;
+#endif //VLOC_FEATURE

@@ -613,9 +613,11 @@ static void btif_av_disconnect_queue_advance_by_uuid(const RawAddress* bd_addr) 
 static void btif_report_connection_state(btav_connection_state_t state,
                                          RawAddress* bd_addr) {
   if (bt_av_sink_callbacks != NULL) {
-    HAL_CBACK(bt_av_sink_callbacks, connection_state_cb, *bd_addr, state);
+    HAL_CBACK(bt_av_sink_callbacks, connection_state_cb, *bd_addr, state,
+      btav_error_t{.status = bt_status_t::BT_STATUS_SUCCESS, .error_code = BTA_AV_SUCCESS});
   } else if (bt_av_src_callbacks != NULL) {
-    HAL_CBACK(bt_av_src_callbacks, connection_state_cb, *bd_addr, state);
+    HAL_CBACK(bt_av_src_callbacks, connection_state_cb, *bd_addr, state,
+      btav_error_t{.status = bt_status_t::BT_STATUS_SUCCESS, .error_code = BTA_AV_SUCCESS});
   }
 }
 
@@ -826,6 +828,11 @@ static void btif_report_source_codec_state(UNUSED_ATTR void* p_data,
     BTIF_TRACE_DEBUG("%s codec config changed BDA:0x%02X%02X%02X%02X%02X%02X", __func__,
                    bd_addr->address[0], bd_addr->address[1], bd_addr->address[2],
                    bd_addr->address[3], bd_addr->address[4], bd_addr->address[5]);
+    int i = btif_av_idx_by_bdaddr(bd_addr);
+    if (i < btif_max_av_clients && btif_av_cb[i].reconfig_pending) {
+      BTIF_TRACE_DEBUG("%s: reconfig pending, do not update codec config to app",__func__);
+      return;
+    }
     HAL_CBACK(bt_av_src_callbacks, audio_config_cb, *bd_addr, codec_config,
               codecs_local_capabilities, codecs_selectable_capabilities);
   }
@@ -1390,10 +1397,12 @@ static bool btif_av_state_opening_handler(btif_sm_event_t event, void* p_data,
       /* inform the application that we are entering connecting state */
       if (bt_av_sink_callbacks != NULL)
         HAL_CBACK(bt_av_sink_callbacks, connection_state_cb,
-                  btif_av_cb[index].peer_bda, BTAV_CONNECTION_STATE_CONNECTING);
+                  btif_av_cb[index].peer_bda, BTAV_CONNECTION_STATE_CONNECTING,
+                  btav_error_t{.status = bt_status_t::BT_STATUS_SUCCESS, .error_code = BTA_AV_SUCCESS});
       else if (bt_av_src_callbacks != NULL)
         HAL_CBACK(bt_av_src_callbacks, connection_state_cb,
-                  btif_av_cb[index].peer_bda, BTAV_CONNECTION_STATE_CONNECTING);
+                  btif_av_cb[index].peer_bda, BTAV_CONNECTION_STATE_CONNECTING,
+                  btav_error_t{.status = bt_status_t::BT_STATUS_SUCCESS, .error_code = BTA_AV_SUCCESS});
       break;
 
     case BTIF_SM_EXIT_EVT:
@@ -2323,6 +2332,7 @@ static bool btif_av_state_opened_handler(btif_sm_event_t event, void* p_data,
       if (!btif_av_cb[index].reconfig_event) {
         btif_av_cb[index].reconfig_pending = false;
       }
+      btif_report_source_codec_state(p_data,&btif_av_cb[index].peer_bda);
        btif_ahim_update_session_params(SessionParamType::MTU);
       //bluetooth::audio::a2dp::update_session_params(SessionParamType::MTU);
     } break;
