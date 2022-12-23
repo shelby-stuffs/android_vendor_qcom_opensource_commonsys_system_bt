@@ -71,6 +71,7 @@ typedef struct {
   uint16_t min_interval;
   uint16_t max_interval;
   uint16_t periodic_advertising_properties;
+  bool include_adi;
 } tBLE_PERIODIC_ADV_PARAMS;
 
 typedef struct {
