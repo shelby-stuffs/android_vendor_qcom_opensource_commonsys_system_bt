@@ -2,7 +2,10 @@ cc_library_static {
     name: "libbt-common-qti",
     defaults: ["fluoride_defaults_qti"],
     host_supported: true,
-    include_dirs: ["vendor/qcom/opensource/commonsys/system/bt"],
+    include_dirs: [
+      "packages/modules/Bluetooth/system/gd",
+      "vendor/qcom/opensource/commonsys/system/bt",
+    ],
     srcs: [
         "address_obfuscator.cc",
         "os_utils.cc",
