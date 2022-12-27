@@ -226,6 +226,9 @@ static int disable(void) {
 }
 
 static void cleanup(void) { stack_manager_get_interface()->clean_up_stack(); }
+static bool get_wbs_supported() {
+  return false;
+}
 
 bool is_restricted_mode() { return restricted_mode; }
 bool is_common_criteria_mode() {
