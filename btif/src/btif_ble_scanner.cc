@@ -311,6 +311,21 @@ class BleScannerInterfaceImpl : public BleScannerInterface {
                               jni_thread_wrapper(FROM_HERE, std::move(cb))));
   }
 
+  void MsftAdvMonitorAdd(MsftAdvMonitor monitor,
+                         MsftAdvMonitorAddCallback cb) override {
+
+  }
+
+  void MsftAdvMonitorRemove(uint8_t monitor_handle,
+                            MsftAdvMonitorRemoveCallback cb) override {
+
+  }
+
+  void MsftAdvMonitorEnable(bool enable,
+                            MsftAdvMonitorEnableCallback cb) override {
+
+  }
+
   void BatchscanConfigStorage(int client_if, int batch_scan_full_max,
                               int batch_scan_trunc_max,
                               int batch_scan_notify_threshold,
