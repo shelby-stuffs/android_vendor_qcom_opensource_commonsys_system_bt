@@ -2643,9 +2643,9 @@ static void bta_dm_discover_next_device(void) {
  ******************************************************************************/
 static void bta_dm_discover_device(const RawAddress& remote_bd_addr) {
   tBT_TRANSPORT transport = BT_TRANSPORT_BR_EDR;
+  tBLE_ADDR_TYPE addr_type;
   if (bta_dm_search_cb.transport == BTA_TRANSPORT_UNKNOWN) {
     tBT_DEVICE_TYPE dev_type;
-    tBLE_ADDR_TYPE addr_type;
 
     BTM_ReadDevInfo(remote_bd_addr, &dev_type, &addr_type);
     if (dev_type == BT_DEVICE_TYPE_BLE || addr_type == BLE_ADDR_RANDOM)
@@ -2669,8 +2669,10 @@ static void bta_dm_discover_device(const RawAddress& remote_bd_addr) {
                      bta_dm_search_cb.p_btm_inq_info->appl_knows_rem_name);
   }
   if ((bta_dm_search_cb.p_btm_inq_info) &&
-      (bta_dm_search_cb.p_btm_inq_info->results.device_type ==
-       BT_DEVICE_TYPE_BLE) &&
+      ((bta_dm_search_cb.p_btm_inq_info->results.device_type ==
+        BT_DEVICE_TYPE_BLE)  || ((bta_dm_search_cb.p_btm_inq_info->results.device_type ==
+        BT_DEVICE_TYPE_DUMO) && (addr_type == BLE_ADDR_RANDOM)))
+        &&
       (bta_dm_search_cb.state == BTA_DM_SEARCH_ACTIVE)) {
     /* Do not perform RNR for LE devices at inquiry complete*/
     bta_dm_search_cb.name_discover_done = true;
