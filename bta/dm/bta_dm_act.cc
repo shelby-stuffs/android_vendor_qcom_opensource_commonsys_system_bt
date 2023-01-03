@@ -1498,7 +1498,9 @@ void bta_dm_search_start(tBTA_DM_MSG* p_data) {
 
   APPL_TRACE_DEBUG("%s avoid_scatter=%d", __func__,
                    p_bta_dm_cfg->avoid_scatter);
-
+#ifdef ADV_AUDIO_FEATURE
+  bta_dm_reset_adv_audio_device_db();
+#endif
   if (p_bta_dm_cfg->avoid_scatter &&
       (p_data->search.rs_res == BTA_DM_RS_NONE) &&
       bta_dm_check_av(BTA_DM_API_SEARCH_EVT)) {
@@ -5383,6 +5385,9 @@ void bta_dm_ble_config_local_privacy(tBTA_DM_MSG* p_data) {
 void bta_dm_ble_observe(tBTA_DM_MSG* p_data) {
   tBTM_STATUS status;
   if (p_data->ble_observe.start) {
+#ifdef ADV_AUDIO_FEATURE
+    bta_dm_reset_adv_audio_device_db();
+#endif
     /*Save the  callback to be called when a scan results are available */
     bta_dm_search_cb.p_scan_cback = p_data->ble_observe.p_cback;
     status = BTM_BleObserve(true, p_data->ble_observe.duration,
