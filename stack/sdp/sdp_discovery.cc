@@ -402,7 +402,7 @@ static bool sdp_copy_raw_data(tCONN_CB* p_ccb, bool offset) {
   SDP_TRACE_WARNING("result :%s", num_array);
 #endif
 
-  if (p_ccb->p_db->raw_data) {
+  if (p_ccb->p_db && p_ccb->p_db->raw_data) {
     cpy_len = p_ccb->p_db->raw_size - p_ccb->p_db->raw_used;
     list_len = p_ccb->list_len;
     p = &p_ccb->rsp_list[0];
