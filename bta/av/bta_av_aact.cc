@@ -4229,7 +4229,7 @@ void bta_av_vendor_offload_start(tBTA_AV_SCB* p_scb)
               bta_av_update_enc_mode(&av_data);
               break;
             case APTX_ULL:
-              av_data.encoder_mode.enc_mode = APTX_LL;
+              av_data.encoder_mode.enc_mode = APTX_HQ;
               bta_av_update_enc_mode(&av_data);
               BTA_AvUpdateAptxData(APTX_ULL);
               break;
