@@ -84,7 +84,7 @@ class Packet {
   bool IncrementPayloadCounter(size_t index, uint8_t max_val);
 
  private:
-  const size_t kMaxPayloadOctets = 256;  // Includes the size byte.
+  static const size_t kMaxPayloadOctets = 256;  // Includes the size byte.
 
   // Underlying containers for storing the actual packet
 
