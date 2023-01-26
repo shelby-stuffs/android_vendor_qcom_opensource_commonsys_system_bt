@@ -226,6 +226,9 @@ static int disable(void) {
 }
 
 static void cleanup(void) { stack_manager_get_interface()->clean_up_stack(); }
+static bool get_wbs_supported() {
+  return false;
+}
 
 bool is_restricted_mode() { return restricted_mode; }
 bool is_common_criteria_mode() {
@@ -555,6 +558,10 @@ static bool allow_low_latency_audio(bool allowed, const RawAddress& address) {
   return false;
 }
 
+static void metadata_changed(const RawAddress& remote_bd_addr, int key,
+                             std::vector<uint8_t> value) {
+}
+
 static int clear_event_mask() {
   LOG_VERBOSE(LOG_TAG, "%s", __func__);
   return BT_STATUS_SUCCESS;
@@ -652,7 +659,8 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     restore_filter_accept_list,
     allow_wake_by_hid,
     set_event_filter_inquiry_result_all_devices,
-    nullptr,
+    get_wbs_supported,
+    metadata_changed,
 };
 
 void invoke_oob_data_request_cb(tBT_TRANSPORT t, bool valid, Octet16 c,
