@@ -635,7 +635,6 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     get_profile_interface,
     dut_mode_configure,
     dut_mode_send,
-    le_test_mode,
     set_os_callouts,
     read_energy_info,
     dump,
