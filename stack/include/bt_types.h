@@ -548,6 +548,8 @@ typedef uint8_t tAMP_KEY_TYPE;
 #define BT_OCTET8_LEN 8
 typedef uint8_t BT_OCTET8[BT_OCTET8_LEN]; /* octet array: size 16 */
 
+typedef std::array<uint8_t, BT_OCTET8_LEN> Octet8; /* standard array: size 8 */
+
 #define AMP_LINK_KEY_LEN 32
 typedef uint8_t
     AMP_LINK_KEY[AMP_LINK_KEY_LEN]; /* Dedicated AMP and GAMP Link Keys */

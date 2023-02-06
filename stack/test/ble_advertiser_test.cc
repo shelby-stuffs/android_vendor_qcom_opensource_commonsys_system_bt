@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #include <array>
@@ -22,8 +26,10 @@
 
 #include "device/include/controller.h"
 #include "stack/btm/ble_advertiser_hci_interface.h"
+#include "stack/btm/btm_int_types.h"
 #include "stack/include/ble_advertiser.h"
 #include "stack_config.h"
+#include "stack/include/gap_api.h"
 
 using ::testing::Args;
 using ::testing::Contains;
@@ -42,6 +48,8 @@ using SetEnableData = BleAdvertiserHciInterface::SetEnableData;
 
 const int num_adv_instances = 16;
 
+tBTM_CB btm_cb; /*STUB*/
+
 /* Below are methods that must be implemented if we don't want to compile the
  * whole stack. They will be removed, or changed into mocks one by one in the
  * future, as the refactoring progresses */
@@ -54,6 +62,15 @@ void btm_acl_update_conn_addr(uint16_t conn_handle, const RawAddress& address) {
 void btm_gen_resolvable_private_addr(
     base::Callback<void(const RawAddress& rpa)> cb) {
   cb.Run(RawAddress::kEmpty);
+}
+void btsnd_hcic_ble_rand(base::Callback<void(BT_OCTET8)> cb){
+    /* STUB */
+}
+
+tGAP_BLE_ATTR_VALUE GAP_BleReadEncrKeyMaterial(){
+    /* STUB */
+    tGAP_BLE_ATTR_VALUE stub;
+    return stub;
 }
 
 const stack_config_t interface = {};
@@ -97,6 +114,8 @@ class AdvertiserHciMock : public BleAdvertiserHciInterface {
  public:
   AdvertiserHciMock() = default;
   ~AdvertiserHciMock() override = default;
+
+
 
   MOCK_METHOD1(ReadInstanceCount,
                void(base::Callback<void(uint8_t /* inst_cnt*/)>));
@@ -285,7 +304,7 @@ TEST_F(BleAdvertisingManagerTest, test_android_flow) {
       .Times(1)
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
-      advertiser_id, false, std::vector<uint8_t>(),
+      advertiser_id, false, std::vector<uint8_t>(), std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   ::testing::Mock::VerifyAndClearExpectations(hci_mock.get());
 
@@ -370,7 +389,7 @@ TEST_F(BleAdvertisingManagerTest, test_adv_data_filling) {
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
       advertiser_id, false,
-      std::vector<uint8_t>({0x02 /* len */, 0x0A /* tx_power */, 0x00}),
+      std::vector<uint8_t>({0x02 /* len */, 0x0A /* tx_power */, 0x00}), std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   ::testing::Mock::VerifyAndClearExpectations(hci_mock.get());
 
@@ -416,7 +435,8 @@ TEST_F(BleAdvertisingManagerTest, test_adv_data_not_filling) {
       .Times(1)
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
-      advertiser_id, false, std::vector<uint8_t>({0x02 /* len */, 0xFF, 0x01}),
+      advertiser_id, false,
+      std::vector<uint8_t>({0x02 /* len */, 0xFF, 0x01}), std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   ::testing::Mock::VerifyAndClearExpectations(hci_mock.get());
 
@@ -506,8 +526,9 @@ void BleAdvertisingManagerTest::StartAdvertisingSetWithSpecificAddressType(
   BleAdvertisingManager::Get()->StartAdvertisingSet(
       Bind(&BleAdvertisingManagerTest::StartAdvertisingSetCb,
            base::Unretained(this)),
-      &params, adv_data, scan_resp, &periodic_params, periodic_data,
-      0 /* duration */, 0 /* maxExtAdvEvents */, Bind(DoNothing2));
+      &params, adv_data,std::vector<uint8_t>(),scan_resp, std::vector<uint8_t>(),
+      &periodic_params, periodic_data,std::vector<uint8_t>(),
+      0 /* duration */, 0 /* maxExtAdvEvents */, std::vector<uint8_t>(), Bind(DoNothing2));
 
   // we are a truly gracious fake controller, let the commands succeed!
   int selected_tx_power = -15;
@@ -617,7 +638,7 @@ TEST_F(BleAdvertisingManagerTest, test_data_sender) {
       .Times(1)
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
-      advertiser_id, false, data,
+      advertiser_id, false, data, std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   for (int i = 0; i < 7; i++) {
     set_data_cb.Run(0x00);
@@ -639,7 +660,7 @@ TEST_F(BleAdvertisingManagerTest, test_data_sender) {
       .Times(1)
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
-      advertiser_id, false, data,
+      advertiser_id, false, data, std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   for (int i = 0; i < 3; i++) {
     set_data_cb.Run(0x00);
@@ -657,7 +678,7 @@ TEST_F(BleAdvertisingManagerTest, test_data_sender) {
       .Times(1)
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
-      advertiser_id, false, data,
+      advertiser_id, false, data, std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   for (int i = 0; i < 2; i++) {
     set_data_cb.Run(0x00);
@@ -675,7 +696,7 @@ TEST_F(BleAdvertisingManagerTest, test_data_sender) {
       .Times(1)
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
-      advertiser_id, false, data,
+      advertiser_id, false, data, std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   for (int i = 0; i < 2; i++) {
     set_data_cb.Run(0x00);
@@ -691,7 +712,7 @@ TEST_F(BleAdvertisingManagerTest, test_data_sender) {
       .Times(1)
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
-      advertiser_id, false, data,
+      advertiser_id, false, data, std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   set_data_cb.Run(0x00);
   ::testing::Mock::VerifyAndClearExpectations(hci_mock.get());
@@ -705,7 +726,7 @@ TEST_F(BleAdvertisingManagerTest, test_data_sender) {
       .Times(1)
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
-      advertiser_id, false, data,
+      advertiser_id, false, data, std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   set_data_cb.Run(0x00);
   ::testing::Mock::VerifyAndClearExpectations(hci_mock.get());
@@ -719,7 +740,7 @@ TEST_F(BleAdvertisingManagerTest, test_data_sender) {
       .Times(1)
       .WillOnce(SaveArg<5>(&set_data_cb));
   BleAdvertisingManager::Get()->SetData(
-      advertiser_id, false, data,
+      advertiser_id, false, data, std::vector<uint8_t>(),
       Bind(&BleAdvertisingManagerTest::SetDataCb, base::Unretained(this)));
   set_data_cb.Run(0x00);
   ::testing::Mock::VerifyAndClearExpectations(hci_mock.get());
@@ -774,8 +795,9 @@ TEST_F(BleAdvertisingManagerTest,
   BleAdvertisingManager::Get()->StartAdvertisingSet(
       Bind(&BleAdvertisingManagerTest::StartAdvertisingSetCb,
            base::Unretained(this)),
-      &params, adv_data, scan_resp, &periodic_params, periodic_data,
-      0 /* duration */, maxExtAdvEvents, Bind(DoNothing2));
+      &params, adv_data, std::vector<uint8_t>(), scan_resp, std::vector<uint8_t>(),
+      &periodic_params, periodic_data, std::vector<uint8_t>(),
+      0 /* duration */, maxExtAdvEvents, std::vector<uint8_t>(), Bind(DoNothing2));
 
   // we are a truly gracious fake controller, let the commands succeed!
   int selected_tx_power = -15;
@@ -892,8 +914,9 @@ TEST_F(BleAdvertisingManagerTest, test_periodic_adv_disable_on_unregister) {
   BleAdvertisingManager::Get()->StartAdvertisingSet(
       Bind(&BleAdvertisingManagerTest::StartAdvertisingSetCb,
            base::Unretained(this)),
-      &params, adv_data, scan_resp, &periodic_params, periodic_data,
-      0 /* duration */, 0 /* maxExtAdvEvents */, Bind(DoNothing2));
+      &params, adv_data, std::vector<uint8_t>(), scan_resp, std::vector<uint8_t>(),
+      &periodic_params, periodic_data, std::vector<uint8_t>(),
+      0 /* duration */, 0 /* maxExtAdvEvents */, std::vector<uint8_t>(), Bind(DoNothing2));
 
   // we are a truly gracious fake controller, let the commands succeed!
   int selected_tx_power = -15;
@@ -1053,8 +1076,9 @@ TEST_F(BleAdvertisingManagerTest, test_duration_update_during_timeout) {
   BleAdvertisingManager::Get()->StartAdvertisingSet(
       Bind(&BleAdvertisingManagerTest::StartAdvertisingSetCb,
            base::Unretained(this)),
-      &params, adv_data, scan_resp, &periodic_params, periodic_data, duration,
-      maxExtAdvEvents, Bind(DoNothing2));
+      &params, adv_data, std::vector<uint8_t>(), scan_resp, std::vector<uint8_t>(),
+      &periodic_params, periodic_data, std::vector<uint8_t>(), duration,
+      maxExtAdvEvents, std::vector<uint8_t>(), Bind(DoNothing2));
 
   // we are a truly gracious fake controller, let the commands succeed!
   int selected_tx_power = -15;
@@ -1142,8 +1166,9 @@ TEST_F(BleAdvertisingManagerTest, test_cleanup_during_execution) {
   BleAdvertisingManager::Get()->StartAdvertisingSet(
       Bind(&BleAdvertisingManagerTest::StartAdvertisingSetCb,
            base::Unretained(this)),
-      &params, adv_data, scan_resp, &periodic_params, periodic_data,
-      0 /* duration */, 0 /* maxExtAdvEvents */, Bind(DoNothing2));
+      &params, adv_data, std::vector<uint8_t>(), scan_resp, std::vector<uint8_t>(),
+      &periodic_params, periodic_data, std::vector<uint8_t>(),
+      0 /* duration */, 0 /* maxExtAdvEvents */, std::vector<uint8_t>(), Bind(DoNothing2));
 
   // we are a truly gracious fake controller, let the commands succeed!
   int selected_tx_power = -15;

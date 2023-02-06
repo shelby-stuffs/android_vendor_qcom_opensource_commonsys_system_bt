@@ -15,7 +15,7 @@
  *  limitations under the License.
  *
  *  Changes from Qualcomm Innovation Center are provided under the following license:
- *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *  SPDX-License-Identifier: BSD-3-Clause-Clear
  *
  ******************************************************************************/
@@ -36,6 +36,7 @@
 #include <string.h>
 #include <list>
 #include <vector>
+#include <map>
 
 #include "bt_types.h"
 #include "bt_utils.h"
@@ -48,6 +49,12 @@
 #include "stack_config.h"
 #include "osi/include/osi.h"
 #include "osi/include/time.h"
+
+#include "btif_storage.h"
+
+#include <openssl/aead.h>
+#include <openssl/base.h>
+#include "../../boringssl/src/crypto/fipsmodule/cipher/internal.h"
 
 #include "advertise_data_parser.h"
 #include "btm_ble_int.h"
@@ -148,6 +155,7 @@ class AdvertisingCache {
 /* Devices in this cache are waiting for eiter scan response, or chained packets
  * on secondary channel */
 AdvertisingCache cache;
+AdvertisingCache periodicCache;
 
 }  // namespace
 
@@ -183,6 +191,7 @@ typedef struct {
   RawAddress remote_bda;
   tBTM_BLE_PERIODIC_SYNC_STATE sync_state;
   uint16_t sync_handle;
+  uint8_t address_type;
   bool in_use;
   StartSyncCb sync_start_cb;
   SyncReportCb sync_report_cb;
@@ -943,6 +952,213 @@ static bool is_resolving_list_bit_set(void* data, void* context) {
 }
 #endif
 
+std::vector<uint8_t> btm_ble_process_encrypted_adv(const RawAddress& bda,
+                                                   std::vector<uint8_t> adv_data,
+                                                   bool* is_decryption_success,
+                                                   std::map<int, int> enc_adv_data_map) {
+  std::vector<uint8_t> iv;
+  std::vector<uint8_t> key;
+  int value_len = 0;
+  char value[1024];
+  std::vector<std::string> enc_key_material_vec;
+  std::vector<uint8_t> adv_data_decrypted;
+  uint8_t enc_key_material_from_file[1024] = {0};
+  char* enc_key_material;
+  static const std::vector<uint8_t> ad = {0xEA};
+  *is_decryption_success = false;
+  std::map<int, std::vector<uint8_t>> decrypted_data_map;
+  std::vector<uint8_t> empty_vec;
+
+  size_t len = btif_config_get_bin_length(bda.ToString().c_str(), "ENC_KEY_MATERIAL");
+  if (len <= 0) {
+    VLOG(1) << __func__ << " Length is zero. Could not get enc key material value for decryption:";
+    return empty_vec;
+  }
+  int status = btif_storage_get_enc_key_material((RawAddress*)&bda, &enc_key_material_from_file[0],
+                                                 (int*) &len);
+  if (status) {
+    VLOG(1) << __func__ << " Could not get enc key material value for decryption:";
+    return empty_vec;
+  }
+
+  if (btm_cb.enc_adv_data_log_enabled) {
+    VLOG(1) << __func__ << "len of enc key material from file :" << +len;
+  }
+  strlcpy(value, (char*)&enc_key_material_from_file[0], len+1);
+
+  /* Split the string from bt_config.conf file into individual 24 byte Encrypted data
+     key material char values and save it in enc_key_material_vec vector */
+  std::string enc_key_str;
+  for (size_t i=0; i < len; i++) {
+    if ((i>0) && (((i+1)%ENC_KEY_MATERIAL_LEN) == 0)) {
+      enc_key_str += value[i];
+      enc_key_material_vec.push_back(enc_key_str);
+      enc_key_str.clear();
+    }
+    else {
+      enc_key_str += value[i];
+    }
+  }
+
+  if (btm_cb.enc_adv_data_log_enabled) {
+    //Print the split 24 byte Encrypted data key material char values
+    for (size_t k=0; k<enc_key_material_vec.size(); k++) {
+      char* p_vec = (char*)enc_key_material_vec[k].c_str();
+      std::vector<uint8_t> enc_key_vec;
+      for (size_t i=0; i<strlen(p_vec); i++) {
+        enc_key_vec.push_back(p_vec[i]);
+      }
+      LOG(INFO) << " Enc Data Key vector: "
+                << base::HexEncode(enc_key_vec.data(), enc_key_vec.size());
+    }
+  }
+
+  /*Iterate through the multiple enc data key char values to check
+    and find the enc key which successfully decrypts the data */
+  for (size_t k=0; k<enc_key_material_vec.size(); k++) {
+    key.clear();
+    iv.clear();
+    enc_key_material = (char*) enc_key_material_vec[k].c_str();
+
+    for (int i=0; i<ENC_KEY_LEN; i++) {
+      key.push_back(enc_key_material[i]);
+    }
+    int j=16;
+    for (int i=0; i<ENC_IV_LEN; i++) {
+      iv.push_back(enc_key_material[i+j]);
+    }
+
+    if (btm_cb.enc_adv_data_log_enabled) {
+      LOG(INFO) << " Session Key: " << base::HexEncode(key.data(), key.size());
+      LOG(INFO) << " IV: " << base::HexEncode(iv.data(), iv.size());
+    }
+
+    const EVP_AEAD_CTX *aeadCTX = EVP_AEAD_CTX_new(EVP_aead_aes_128_ccm_bluetooth(), key.data(),
+        key.size(), EVP_AEAD_DEFAULT_TAG_LENGTH);
+    int pos_index = 0;
+    int enc_data_part_len = 0;
+
+    if (enc_adv_data_map.empty()){
+      LOG(INFO) << " enc_adv_data_map is empty:";
+      return empty_vec;
+    }
+
+    std::map<int, int>::iterator it;
+    if (btm_cb.enc_adv_data_log_enabled) {
+      for (it = enc_adv_data_map.begin(); it != enc_adv_data_map.end(); it++) {
+        LOG(INFO) << " enc_adv_data_map: postion:" << +(it->first)
+                  << " :length:" << +(it->second);
+      }
+    }
+
+    for (it = enc_adv_data_map.begin(); it != enc_adv_data_map.end(); it++) {
+      std::vector<uint8_t> nonce;
+      std::vector<uint8_t> MIC;
+      std::vector<uint8_t> payload;
+      std::vector<uint8_t> randomizer;
+      pos_index = it->first;
+      enc_data_part_len = it->second;
+
+      if (btm_cb.enc_adv_data_log_enabled) {
+        LOG(INFO) << " pos_index:" << +pos_index << " :enc_data_part_len:" << +enc_data_part_len;
+      }
+      for(int i = pos_index; i < (pos_index + enc_data_part_len); i++){
+        if((i >= (pos_index +2)) && (i <= (pos_index+6))){
+          randomizer.push_back(adv_data[i]);
+        }
+        else if((i > (pos_index + 6)) && i < (pos_index + (enc_data_part_len-4))){
+          payload.push_back(adv_data[i]);
+        }
+        if((i >= (pos_index + (enc_data_part_len-4))) && (i < (pos_index + enc_data_part_len))){
+          MIC.push_back(adv_data[i]);
+        }
+      }
+
+      nonce.insert(nonce.end(), randomizer.begin(), randomizer.end());
+      nonce.insert(nonce.end(), iv.rbegin(), iv.rend());
+
+      std::vector<uint8_t> out(payload.size());
+      if (btm_cb.enc_adv_data_log_enabled) {
+        LOG(INFO) << " Randomizer: " << base::HexEncode(randomizer.data(), randomizer.size());
+        LOG(INFO) << " Nonce: " << base::HexEncode(nonce.data(), nonce.size());
+        LOG(INFO) << " Payload: " << base::HexEncode(payload.data(), payload.size());
+        LOG(INFO) << " MIC: " << base::HexEncode(MIC.data(), MIC.size());
+      }
+
+      EVP_AEAD_CTX_open_gather(aeadCTX, out.data(), nonce.data(), nonce.size(), payload.data(),
+                               payload.size(), MIC.data(), MIC.size(), ad.data(), ad.size());
+      if (btm_cb.enc_adv_data_log_enabled) {
+        LOG(INFO) << " OUT: " << base::HexEncode(out.data(), out.size());
+      }
+      if (out.size() > 0 && (out[0] > 0)) {
+        LOG(INFO) << " Decryption successful: ";
+        std::vector<uint8_t> decrypted_data;
+
+        //construct enc adv data part's (decrypted) vector
+        decrypted_data.insert(decrypted_data.begin(), out.begin(), out.end());
+
+        //Insert decrypted part vector and position
+        decrypted_data_map.insert(std::pair<int, std::vector<uint8_t>>(pos_index, decrypted_data));
+      } else {
+        LOG(INFO) << " Decryption NOT successful: ";
+        break;//try next enc key char value
+      }
+    }
+
+    if (btm_cb.enc_adv_data_log_enabled) {
+      //Print decrypted_data_map
+      std::map<int, std::vector<uint8_t>>::iterator it1;
+      for (it1 = decrypted_data_map.begin(); it1 != decrypted_data_map.end(); it1++) {
+        LOG(INFO) << " decrypted_data_map: postion:" << +(it1->first);
+        std::vector<uint8_t> vec_temp = it1->second;
+        LOG(INFO) << " decrypted_data_map vector: "
+                  << base::HexEncode(vec_temp.data(), vec_temp.size());
+      }
+    }
+
+    if (!decrypted_data_map.empty() && !enc_adv_data_map.empty()) {
+      std::map<int, std::vector<uint8_t>>::iterator it_decrypted_map;
+      std::map<int, int>::iterator it_enc_map;
+      *is_decryption_success = true;
+      it_decrypted_map = decrypted_data_map.begin();
+      int enc_data_index = it_decrypted_map->first;
+      std::vector<uint8_t> decrypted_part = it_decrypted_map->second;
+
+      it_enc_map = enc_adv_data_map.begin();
+      int enc_data_part_len = it_enc_map->second;
+
+      // Copy data from original adv_data to adv_data_decrypted vector
+      for (int i=0; i< (int)adv_data.size(); i++) {
+        if (i < enc_data_index) {
+          adv_data_decrypted.push_back(adv_data[i]);
+        } else if (i == enc_data_index) {
+          adv_data_decrypted.insert(adv_data_decrypted.end(), decrypted_part.begin(),
+                                    decrypted_part.end());
+          i = i+enc_data_part_len-1;
+          it_decrypted_map++;
+          if (it_decrypted_map != decrypted_data_map.end()) {
+            enc_data_index = it_decrypted_map->first;
+            decrypted_part = it_decrypted_map->second;
+          } else {
+            enc_data_index = (int) adv_data.size();
+          }
+          it_enc_map++;
+          if (it_enc_map != enc_adv_data_map.end()) {
+            enc_data_part_len = it_enc_map->second;
+          } else {
+            enc_data_part_len = 0;
+          }
+        }
+      }//end for loop
+      adv_data.clear();
+      adv_data.insert(adv_data.begin(), adv_data_decrypted.begin(), adv_data_decrypted.end());
+      break; //break and no need to iterate through other enc key char values for decryption
+    }
+  }//for loop for enc_key_value
+
+  return adv_data;
+}
+
 /*******************************************************************************
  * PAST and Periodic Sync helper functions
  ******************************************************************************/
@@ -1194,6 +1410,7 @@ void btm_ble_periodic_adv_sync_established(uint8_t *param, uint16_t param_len) {
   }
   tBTM_BLE_PERIODIC_SYNC *ps = &btm_ble_pa_sync_cb.p_sync[index];
   ps->sync_handle = sync_handle;
+  ps->address_type = address_type;
   ps->sync_state = PERIODIC_SYNC_ESTABLISHED;
   ps->sync_start_cb.Run(status, sync_handle, adv_sid,
                                    address_type, addr, phy, interval);
@@ -1214,6 +1431,7 @@ void btm_ble_periodic_adv_report(uint8_t *param, uint16_t param_len) {
   uint8_t tx_power, rssi, cte_type, data_status, data_len;
   uint16_t sync_handle;
   std::vector<uint8_t> data;
+  std::vector<uint8_t> tmp;
   uint8_t periodic_data[255] = {0};
   uint8_t *p = param;
   STREAM_TO_UINT16(sync_handle, p);
@@ -1230,14 +1448,83 @@ void btm_ble_periodic_adv_report(uint8_t *param, uint16_t param_len) {
   for(int i = 0;i < data_len; i++) {
     data.push_back(periodic_data[i]);
   }
+  if (data_len != 0) tmp.insert(tmp.begin(), data.begin(), data.end());
+
+
   int index = btm_ble_get_psync_index_from_handle(sync_handle);
   if (index == MAX_SYNC_TRANSACTION) {
     BTM_TRACE_ERROR("[PSync]%s: index not found", __func__);
     return;
   }
   tBTM_BLE_PERIODIC_SYNC *ps = &btm_ble_pa_sync_cb.p_sync[index];
+
+  data = periodicCache.Append(ps->address_type, ps->remote_bda, std::move(tmp));
+  bool data_complete;
+  if (data_status == 0x01) {
+    LOG(INFO) << __func__ << " Data not complete yet, waiting for more " << ps->remote_bda;
+    data_complete = false;
+  } else if (data_status == 0x02) {
+    LOG(INFO) << __func__ << " Data not complete yet, No More Data Coming " << ps->remote_bda;
+    periodicCache.Clear(ps->address_type, ps->remote_bda);
+    data_complete = false;
+  } else {
+    LOG(INFO) << __func__ << " Data Complete: " << ps->remote_bda;
+    data_complete = true;
+  }
+  if(!data_complete) {
+    LOG(INFO) << "Data not complete yet, waiting for more " << ps->remote_bda
+              << " Data Status: " << loghex(data_status);
+    return;
+  }
+
+
+  bool encrypted_data = false;
+  bool is_decrypt_success = false;
+  uint8_t len1;
+  std::vector<uint8_t> decrypted_data = data;
+  std::map<int, int> enc_adv_data_map;
+  if (btm_cb.enc_adv_data_log_enabled) {
+    VLOG(1) << __func__ << " encrypted_data:" << encrypted_data;
+  }
+  if(AdvertiseDataParser::GetFieldByType(data, BTM_BLE_AD_TYPE_ED, &len1)) {
+    if(!AdvertiseDataParser::IsValid(data)) {
+      if (btm_cb.enc_adv_data_log_enabled) {
+        VLOG(1) << __func__ << "Dropping bad periodic advertisement packet: "
+                << base::HexEncode(data.data(), data.size());
+      }
+      return;
+    }
+    encrypted_data = true;
+    if (btm_cb.enc_adv_data_log_enabled) {
+      VLOG(1) << __func__ << "FOUND ENCRYPTED PA DATA:"
+              << base::HexEncode(data.data(), data.size());
+    }
+    enc_adv_data_map =
+            AdvertiseDataParser::GetEncAdvFieldsInfo(data.data(), data.size());
+  }
+  if (btm_cb.enc_adv_data_enabled) {
+    if (encrypted_data){
+      if (btm_cb.enc_adv_data_log_enabled) {
+        LOG(INFO) << " PA data before decryption: "
+                  << base::HexEncode(data.data(), data.size());
+      }
+
+      decrypted_data = btm_ble_process_encrypted_adv(ps->remote_bda, data, &is_decrypt_success,
+          enc_adv_data_map);
+      if (!is_decrypt_success) {
+        VLOG(1) << __func__ << " Decryption NOT successful, return:";
+      }
+
+      if (btm_cb.enc_adv_data_log_enabled) {
+        LOG(INFO) << " PA data after decryption: "
+                  << base::HexEncode(decrypted_data.data(), decrypted_data.size());
+      }
+    }
+  }
+
   BTM_TRACE_DEBUG("[PSync]%s: invoking callback", __func__);
-  ps->sync_report_cb.Run(sync_handle, tx_power, rssi, data_status, data);
+  periodicCache.Clear(ps->address_type, ps->remote_bda);
+  ps->sync_report_cb.Run(sync_handle, tx_power, rssi, data_status, decrypted_data);
 }
 
 /*******************************************************************************
@@ -2893,8 +3180,9 @@ static void btm_ble_process_adv_pkt_cont(
     uint8_t* data) {
   tBTM_INQUIRY_VAR_ST* p_inq = &btm_cb.btm_inq_vars;
   bool update = true;
-
+  VLOG(1) << __func__ << "bda:" << bda;
   std::vector<uint8_t> tmp;
+  std::vector<uint8_t> adv_data_decrypted;
   if (data_len != 0) tmp.insert(tmp.begin(), data, data + data_len);
 
   bool is_scannable = ble_evt_type_is_scannable(evt_type);
@@ -2909,15 +3197,22 @@ static void btm_ble_process_adv_pkt_cont(
   // We might have send scan request to this device before, but didn't get the
   // response. In such case make sure data is put at start, not appended to
   // already existing data.
-  std::vector<uint8_t> const& adv_data =
-      is_start ? cache.Set(addr_type, bda, std::move(tmp))
-               : cache.Append(addr_type, bda, std::move(tmp));
-
-  bool data_complete = (ble_evt_type_data_status(evt_type) != 0x01);
-
+  std::vector<uint8_t> adv_data =
+        is_start ? cache.Set(addr_type, bda, std::move(tmp))
+                 : cache.Append(addr_type, bda, std::move(tmp));
+  bool data_complete;
+  if (ble_evt_type_data_status(evt_type) == 0x01) {
+    LOG(INFO) << __func__ <<  " Data not complete yet, waiting for more " << bda;
+    data_complete = false;
+  } else if (ble_evt_type_data_status(evt_type) == 0x10) {
+    LOG(INFO) << __func__ << " Data not complete yet, No More Data Coming " << bda;
+    data_complete = false;
+    cache.Clear(addr_type, bda);
+  } else {
+    LOG(INFO) << __func__ << " Data Complete " << bda;
+    data_complete = true;
+  }
   if (!data_complete) {
-    // If we didn't receive whole adv data yet, don't report the device.
-    VLOG(1) << "Data not complete yet, waiting for more " << bda;
     return;
   }
 
@@ -2929,9 +3224,58 @@ static void btm_ble_process_adv_pkt_cont(
     return;
   }
 
+  bool encrypted_data = false;
+  bool is_decrypt_success = false;
+  uint8_t len1;
+  int len_enc_data;
+  int enc_data_begin_index = 0;
+  std::map<int, int> enc_adv_data_map;
+  std::map<int, std::vector<uint8_t>> decrypted_data_map;
+  VLOG(1) << __func__ << "encrypted_data:" << encrypted_data;
+  if(AdvertiseDataParser::GetFieldByType(adv_data, BTM_BLE_AD_TYPE_ED, &len1)){
+    if(!AdvertiseDataParser::IsValid(adv_data)){
+        VLOG(1) << __func__ << "Dropping bad advertisement packet: "
+                << base::HexEncode(adv_data.data(), adv_data.size());
+      return;
+    }
+    encrypted_data = true;
+    if (btm_cb.enc_adv_data_log_enabled) {
+      VLOG(1) << __func__ << "FOUND ENCRYPTED DATA: "
+              << base::HexEncode(adv_data.data(), adv_data.size());
+    }
+
+    enc_adv_data_map =
+        AdvertiseDataParser::GetEncAdvFieldsInfo(adv_data.data(), adv_data.size());
+  }
+  if (btm_cb.enc_adv_data_enabled) {
+    if (encrypted_data) {
+      if (btm_cb.enc_adv_data_log_enabled) {
+        LOG(INFO) << " Adv data before decryption: "
+                  << base::HexEncode(adv_data.data(), adv_data.size());
+      }
+
+      std::vector<uint8_t> decrypted_data =
+          btm_ble_process_encrypted_adv(bda, adv_data, &is_decrypt_success, enc_adv_data_map);
+      if (!is_decrypt_success) {
+        VLOG(1) << __func__ << " Decryption NOT successful, return:";
+      }
+
+      if (!decrypted_data.empty()) {
+        LOG(INFO) << " decrypted_data is not empty: ";
+        adv_data.clear();
+        adv_data.insert(adv_data.begin(), decrypted_data.begin(), decrypted_data.end());
+      }
+    }
+  }
+
+  if (btm_cb.enc_adv_data_log_enabled) {
+    LOG(INFO) << " Adv data after decryption: "
+              << base::HexEncode(adv_data.data(), adv_data.size());
+  }
+
   if (!AdvertiseDataParser::IsValid(adv_data)) {
     VLOG(1) << __func__ << "Dropping bad advertisement packet: "
-             << base::HexEncode(adv_data.data(), adv_data.size());
+            << base::HexEncode(adv_data.data(), adv_data.size());
     return;
   }
 
@@ -3633,6 +3977,8 @@ void btm_ble_update_mode_operation(uint8_t link_role, const RawAddress* bd_addr,
  ******************************************************************************/
 void btm_ble_init(void) {
   tBTM_BLE_CB* p_cb = &btm_cb.ble_ctr_cb;
+  char enc_adv_data_enabled_prop[PROPERTY_VALUE_MAX] = "false";
+  char enc_adv_data_log_enabled_prop[PROPERTY_VALUE_MAX] = "false";
 
   BTM_TRACE_DEBUG("%s", __func__);
 
@@ -3667,6 +4013,21 @@ void btm_ble_init(void) {
 #if (BLE_VND_INCLUDED == FALSE)
   btm_ble_adv_filter_init();
 #endif
+
+  if (property_get("persist.vendor.btstack.enable.enc_adv_data",enc_adv_data_enabled_prop, "true")
+      && !strcmp(enc_adv_data_enabled_prop, "true")) {
+    btm_cb.enc_adv_data_enabled = true;
+  } else {
+    btm_cb.enc_adv_data_enabled = false;
+  }
+  LOG(INFO) << __func__ << " enc_adv_data_enabled:" << +btm_cb.enc_adv_data_enabled;
+  if (property_get("persist.vendor.btstack.enable.enc_adv_data_log", enc_adv_data_log_enabled_prop,
+      "false") && !strcmp(enc_adv_data_log_enabled_prop, "true")) {
+    btm_cb.enc_adv_data_log_enabled = true;
+  } else {
+    btm_cb.enc_adv_data_log_enabled = false;
+  }
+  LOG(INFO) << __func__ << " enc_adv_data_log_enabled:" << +btm_cb.enc_adv_data_log_enabled;
 }
 
 /*******************************************************************************

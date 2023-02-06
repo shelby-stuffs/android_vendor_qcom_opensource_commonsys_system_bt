@@ -356,6 +356,7 @@ typedef struct {
 
   uint8_t svc_chg_cccd;
   bool is_db_out_of_sync_sent;
+  bool is_read_enc_key_pending;
 } tGATT_TCB;
 
 typedef struct {

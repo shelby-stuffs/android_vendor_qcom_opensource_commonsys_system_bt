@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 /******************************************************************************
@@ -1436,6 +1440,19 @@ void BTM_BlePeriodicSyncSetInfo(RawAddress addr, uint16_t service_data,
  ******************************************************************************/
 void BTM_BlePeriodicSyncTxParameters(RawAddress addr, uint8_t mode,
                                      uint16_t skip, uint16_t timeout, StartSyncCb syncCb);
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleGetEncKeyMaterial
+ *
+ * Description      This function is called to get the local device Encrypted
+ *                  Data Key Material characteristic value associated with
+ *                  GAP service.
+ *
+ * Returns          void
+ *
+ ******************************************************************************/
+extern void BTM_BleGetEncKeyMaterial(uint8_t* enc_key_value);
 
 /*******************************************************************************
  *

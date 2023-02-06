@@ -940,6 +940,8 @@ typedef struct {
   tBTM_CSIP_OPPORTUNISTIC_SCAN_CB* p_csip_scan_cb = NULL;
   bool is_csip_opportunistic_scan_enabled = false;
   tBTM_BLE_READ_ANTENNA_INFO ble_antenna_info;
+  bool enc_adv_data_enabled;
+  bool enc_adv_data_log_enabled;
 } tBTM_CB;
 
 /* security action for L2CAP COC channels */

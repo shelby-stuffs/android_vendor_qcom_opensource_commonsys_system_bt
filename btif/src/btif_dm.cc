@@ -49,8 +49,9 @@
  *  limitations under the License.
  *
  *  Changes from Qualcomm Innovation Center are provided under the following license:
- *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 /*******************************************************************************
@@ -152,6 +153,8 @@ const Uuid UUID_HEARING_AID = Uuid::FromString("FDF0");
 #define BTIF_DM_DEFAULT_INQ_MAX_RESULTS 0
 #define BTIF_DM_DEFAULT_INQ_MAX_DURATION 10
 #define BTIF_DM_MAX_SDP_ATTEMPTS_AFTER_PAIRING 2
+
+#define ENC_KEY_MATERIAL_LEN 24
 
 #define NUM_TIMEOUT_RETRIES 2
 
@@ -2539,6 +2542,19 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
       bt_uid_traffic_t* data = uid_set_read_and_clear(uid_set);
       HAL_CBACK(bt_hal_cbacks, energy_info_cb, &energy_info, data);
       osi_free(data);
+      break;
+    }
+
+    case BTA_DM_ENC_KEY_MATERIAL: {
+      char buf[512];
+      bt_property_t prop;
+      prop.type = BT_PROPERTY_ENC_KEY_MATERIAL;
+      prop.val = (void*)buf;
+      prop.len = ENC_KEY_MATERIAL_LEN;
+
+      memcpy(prop.val, p_data->enc_key_material.enc_key_value, ENC_KEY_MATERIAL_LEN);
+      HAL_CBACK(bt_hal_cbacks, adapter_properties_cb, BT_STATUS_SUCCESS, 1,
+                &prop);
       break;
     }
 

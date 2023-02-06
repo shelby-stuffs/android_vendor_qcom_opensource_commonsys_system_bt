@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #ifndef BLE_ADVERTISER_H
@@ -29,6 +33,8 @@
 #define ADVERTISE_FAILED_TOO_MANY_ADVERTISERS 0x02
 
 #define INVALID_BIG_HANDLE 0xFF
+
+using GenerateRandomizerCb = base::Callback<void(uint8_t /*status*/)>;
 
 using MultiAdvCb = base::Callback<void(uint8_t /* status */)>;
 using ParametersCb =
@@ -128,10 +134,14 @@ class BleAdvertisingManager {
                           uint8_t /* status */)>
           cb,
       tBTM_BLE_ADV_PARAMS* params, std::vector<uint8_t> advertise_data,
+      std::vector<uint8_t> advertise_data_enc,
       std::vector<uint8_t> scan_response_data,
+      std::vector<uint8_t> scan_response_data_enc,
       tBLE_PERIODIC_ADV_PARAMS* periodic_params,
-      std::vector<uint8_t> periodic_data, uint16_t duration,
-      uint8_t maxExtAdvEvents,
+      std::vector<uint8_t> periodic_data,
+      std::vector<uint8_t> periodic_data_enc,
+      uint16_t duration, uint8_t maxExtAdvEvents,
+      std::vector<uint8_t> enc_key_value,
       base::Callback<void(uint8_t /* inst_id */, uint8_t /* status */)>
           timeout_cb) = 0;
 
@@ -156,7 +166,8 @@ class BleAdvertisingManager {
   /* This function configure a Multi-ADV instance with the specified adv data or
    * scan response data.*/
   virtual void SetData(uint8_t inst_id, bool is_scan_rsp,
-                       std::vector<uint8_t> data, MultiAdvCb cb) = 0;
+                       std::vector<uint8_t> data, std::vector<uint8_t> data_enc,
+                       MultiAdvCb cb) = 0;
 
   /* This function configure instance with the specified periodic parameters */
   virtual void SetPeriodicAdvertisingParameters(
@@ -165,6 +176,7 @@ class BleAdvertisingManager {
   /* This function configure instance with the specified periodic data */
   virtual void SetPeriodicAdvertisingData(uint8_t inst_id,
                                           std::vector<uint8_t> data,
+                                          std::vector<uint8_t> data_enc,
                                           MultiAdvCb cb) = 0;
 
   /* This function enables/disables periodic advertising on selected instance */

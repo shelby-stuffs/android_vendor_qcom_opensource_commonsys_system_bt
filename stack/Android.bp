@@ -334,6 +334,7 @@ cc_test {
     ],
     shared_libs: [
         "libcutils",
+        "libcrypto",
     ],
     static_libs: [
         "libbluetooth-types",

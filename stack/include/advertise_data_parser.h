@@ -14,12 +14,19 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ * ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #pragma once
 
 #include <array>
 #include <vector>
+#include <map>
+
+#define BTM_BLE_AD_TYPE_ED 0x31
 
 // Scan Response data from Traxxas
 static constexpr std::array<uint8_t, 18> trx_quirk{
@@ -140,5 +147,34 @@ class AdvertiseDataParser {
   static const uint8_t* GetFieldByType(std::vector<uint8_t> const& ad,
                                        uint8_t type, uint8_t* p_length) {
     return GetFieldByType(ad.data(), ad.size(), type, p_length);
+  }
+
+  /**
+  * This function returns a map<starting position of Enc AD data part in original
+  * Adv data, Length of Enc AD data part (including L, T(of Enc AD type) in |p_length|>
+  *
+  */
+  static std::map<int, int> GetEncAdvFieldsInfo(const uint8_t* ad, size_t ad_len) {
+    size_t position = 0;
+    std::map<int, int> enc_adv_map;
+    int enc_data_part_length = 0;
+
+    while (position < ad_len) {
+      uint8_t len = ad[position];
+
+      if (len == 0) break;
+      if (position + len >= ad_len) break;
+
+      uint8_t adv_type = ad[position + 1];
+
+      if (adv_type == BTM_BLE_AD_TYPE_ED) {
+        enc_data_part_length = len + 1; /* Length(1 byte) + len */
+        enc_adv_map.insert(std::pair<int, int>((int)position, enc_data_part_length));
+      }
+
+      position += len + 1; /* skip the length of data */
+    }
+
+    return enc_adv_map;
   }
 };

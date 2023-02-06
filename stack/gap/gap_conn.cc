@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ * ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #include <base/strings/stringprintf.h>
@@ -24,6 +28,10 @@
 #include "btu.h"
 #include "device/include/controller.h"
 #include "gap_api.h"
+#include "hcimsgs.h"
+#include "btif_storage.h"
+#include "btif_config.h"
+#include "gatt_int.h"
 #include "l2c_int.h"
 #include "l2cdefs.h"
 #include "osi/include/fixed_queue.h"
@@ -1203,10 +1211,97 @@ static void gap_release_ccb(tGAP_CCB* p_ccb) {
 
 extern void gap_attr_db_init(void);
 
+/*******************************************************************************
+ *
+ * Function         GenerateKeyIV
+ *
+ * Description      This function generates Key & IV for Encryption
+ *
+ * Returns          void
+ *
+ ******************************************************************************/
+void GenerateKeyIV(tGAP_BLE_ATTR_VALUE *attr_cb) {
+  btsnd_hcic_ble_rand(base::Bind([](tGAP_BLE_ATTR_VALUE *attr_cb, BT_OCTET8 rand) {
+      BT_OCTET8 temp;
+      for (int i = BT_OCTET8_LEN-1; i >= 0; i--) {
+        temp[(BT_OCTET8_LEN-1) - i] = rand[i];
+      }
+      memcpy(attr_cb->encr_material.init_vector, temp, BT_OCTET8_LEN);
+      btsnd_hcic_ble_rand(base::Bind([](tGAP_BLE_ATTR_VALUE *attr_cb, BT_OCTET8 rand) {
+          BT_OCTET8 temp;
+          for (int i = BT_OCTET8_LEN-1; i >= 0; i--) {
+            temp[(BT_OCTET8_LEN-1) - i] = rand[i];
+          }
+          memcpy(attr_cb->encr_material.session_key, temp, BT_OCTET8_LEN);
+          btsnd_hcic_ble_rand(base::Bind([](tGAP_BLE_ATTR_VALUE *attr_cb, BT_OCTET8 rand) {
+              BT_OCTET8 temp;
+              for (int i = BT_OCTET8_LEN-1; i >= 0; i--) {
+                temp[(BT_OCTET8_LEN-1) - i] = rand[i];
+              }
+              memcpy(attr_cb->encr_material.session_key + BT_OCTET8_LEN, temp, BT_OCTET8_LEN);
+              if (btm_cb.enc_adv_data_log_enabled) {
+                for(unsigned int i = 0; i < ENC_IV_LEN; i++){
+                  uint8_t temp = attr_cb->encr_material.init_vector[i];
+                  LOG(INFO) << __func__ << " NEW GENIV: " << std::hex << static_cast<int>(temp);
+                }
+                for(unsigned int i = 0; i < ENC_KEY_LEN; i++){
+                  uint8_t temp = attr_cb->encr_material.session_key[i];
+                  LOG(INFO) << __func__ << " NEW GENKEY: " << std::hex << static_cast<int>(temp);
+                }
+              }
+              uint8_t value[ENC_KEY_MATERIAL_LEN];
+              memcpy(value, attr_cb->encr_material.session_key, ENC_KEY_LEN);
+              memcpy(value + ENC_KEY_LEN, attr_cb->encr_material.init_vector, ENC_IV_LEN);
+              btif_storage_set_enc_key_material(NULL, value, sizeof(value));
+              btif_config_save();
+              GAP_BleAttrDBUpdate(GATT_UUID_GAP_ENC_KEY_MATERIAL, attr_cb);
+            },
+            attr_cb));
+        },
+        attr_cb));
+    },
+    attr_cb));
+}
+
+void EncryptedAdvSetup() {
+  uint8_t value[ENC_KEY_MATERIAL_LEN];
+  int data_len = 0;
+  int result = btif_storage_get_enc_key_material(NULL, value, &data_len);
+  if (result) { /* Checking to see if we were able to retrieve a value from the bt_config.conf file */
+    if (btm_cb.enc_adv_data_log_enabled) {
+      LOG(INFO) << __func__ << " KEY & IV not found in bt_config";
+    }
+    tGAP_BLE_ATTR_VALUE attr_cb;
+    GenerateKeyIV(&attr_cb); /* If value not found we generate a Key & IV*/
+  } else {
+    if (btm_cb.enc_adv_data_log_enabled) {
+      LOG(INFO) << __func__ << " Found KEY & IV in bt_config";
+      for(unsigned int i = 0; i < ENC_KEY_MATERIAL_LEN; i++) {
+          uint8_t temp = value[i];
+          LOG(INFO) << "Value: " << std::hex << static_cast<int>(temp);
+      }
+    }
+    tGAP_BLE_ATTR_VALUE attr_cb;
+    /* Since we found a value in the bt_config file we now add it to the Database below */
+    memcpy(attr_cb.encr_material.session_key, value, ENC_KEY_LEN);
+    memcpy(attr_cb.encr_material.init_vector, value + ENC_KEY_LEN, ENC_IV_LEN);
+    GAP_BleAttrDBUpdate(GATT_UUID_GAP_ENC_KEY_MATERIAL, &attr_cb);
+  }
+}
+
+
 /*
  * This routine should not be called except once per stack invocation.
  */
 void GAP_Init(void) {
   gap_conn_init();
   gap_attr_db_init();
+  LOG(INFO) << __func__ << " enc_adv_data_enabled:" << +btm_cb.enc_adv_data_enabled;
+  if (!btm_cb.enc_adv_data_enabled) {
+    LOG(INFO) << __func__ << " Encrypted adv data feature is not enabled:";
+    return;
+  } else {
+    EncryptedAdvSetup();
+  }
+
 }

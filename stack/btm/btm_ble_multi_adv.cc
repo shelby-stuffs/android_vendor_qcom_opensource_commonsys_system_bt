@@ -16,7 +16,7 @@
  *  limitations under the License.
  *
  *  Changes from Qualcomm Innovation Center are provided under the following license:
- *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *  SPDX-License-Identifier: BSD-3-Clause-Clear
  *
  ******************************************************************************/
@@ -33,8 +33,15 @@
 #include "stack/btm/btm_ble_int.h"
 
 #include <string.h>
+#include <string>
 #include <queue>
 #include <vector>
+
+#include <openssl/aead.h>
+#include <openssl/base.h>
+#include <openssl/rand.h>
+#include "hcimsgs.h"
+#include "gap_api.h"
 
 #include <base/bind.h>
 #include <base/bind_helpers.h>
@@ -67,6 +74,7 @@ std::mutex lock_;
 constexpr int EXT_ADV_DATA_LEN_MAX = 251;
 constexpr int PERIODIC_ADV_DATA_LEN_MAX = 252;
 
+#define ADVERTISE_FAILED_FEATURE_UNSUPPORTED 0x05
 
 namespace {
 
@@ -112,6 +120,14 @@ struct AdvertisingInstance {
   uint32_t advertising_interval;  // 1 unit is 0.625 ms
   uint8_t skip_rpa_count;
   bool skip_rpa;
+  std::array<uint8_t,5> randomizer;
+  std::vector<uint8_t> advertise_data;
+  std::vector<uint8_t> scan_response_data;
+  std::vector<uint8_t> periodic_data;
+  std::vector<uint8_t> advertise_data_enc;
+  std::vector<uint8_t> scan_response_data_enc;
+  std::vector<uint8_t> periodic_adv_data_enc;
+  std::vector<uint8_t> enc_key_value;
   /* When true, advertising set is enabled, or last scheduled call to "LE Set
    * Extended Advertising Set Enable" is to enable this advertising set. Any
    * command scheduled when in this state will execute when the set is enabled,
@@ -192,14 +208,25 @@ struct CreatorParams {
   IdTxPowerStatusCb cb;
   tBTM_BLE_ADV_PARAMS params;
   std::vector<uint8_t> advertise_data;
+  std::vector<uint8_t> advertise_data_enc;
   std::vector<uint8_t> scan_response_data;
+  std::vector<uint8_t> scan_response_data_enc;
   tBLE_PERIODIC_ADV_PARAMS periodic_params;
   std::vector<uint8_t> periodic_data;
+  std::vector<uint8_t> periodic_adv_data_enc;
+  std::vector<uint8_t> enc_key_value;
   uint16_t duration;
   uint8_t maxExtAdvEvents;
   tBLE_CREATE_BIG_PARAMS create_big_params;
   RegisterCb timeout_cb;
 };
+
+void GenerateRandomizer_cmpl(AdvertisingInstance* p_inst, uint16_t temp_randomizer[5],
+                            GenerateRandomizerCb cb){
+  memcpy(p_inst->randomizer.data(), temp_randomizer, 5);
+  std::reverse(p_inst->randomizer.begin(),p_inst->randomizer.end());
+  cb.Run(BTM_BLE_MULTI_ADV_SUCCESS);
+}
 
 using c_type = std::unique_ptr<CreatorParams>;
 
@@ -239,8 +266,108 @@ class BleAdvertisingManagerImpl
     }
   }
 
+  std::vector<uint8_t> EncryptedAdvertising(AdvertisingInstance* p_inst,
+                                            std::vector<uint8_t> data) {
+    std::vector<uint8_t> ED_AD_Data = {}; /*Randomizer + Payload + Out_Tag(MIC)*/
+    std::vector<uint8_t> key;
+    std::vector<uint8_t> iv;
+    if (p_inst->enc_key_value.empty()) { /* Check to see if we have a user provided Key & IV*/
+      if (btm_cb.enc_adv_data_log_enabled) {
+        VLOG(1) << __func__ << " Gap Key";
+      }
+      tGAP_BLE_ATTR_VALUE temp = GAP_BleReadEncrKeyMaterial();
+      for (unsigned int i = 0; i < 16; i++) {
+        uint8_t temp_key = temp.encr_material.session_key[i];
+        uint8_t temp_iv;
+        key.push_back(temp_key);
+        if(i < 8){
+          temp_iv = temp.encr_material.init_vector[i];
+          iv.push_back(temp_iv);
+        }
+      }
+    }
+    else {
+      if (btm_cb.enc_adv_data_log_enabled) {
+        VLOG(1) << __func__ << " User Key";
+      }
+      for (unsigned int i = 0; i < 24; i++) {
+        if ( i < 16 ) {
+          key.push_back(p_inst->enc_key_value[i]);
+        }
+        else {
+          iv.push_back(p_inst->enc_key_value[i]);
+        }
+      }
+    }
+    std::vector<uint8_t> nonce;
+    nonce.insert(nonce.end(), p_inst->randomizer.rbegin(), p_inst->randomizer.rend());
+    nonce.insert(nonce.end(), iv.rbegin(), iv.rend());
+    std::vector<uint8_t> in = data;
+    static const std::vector<uint8_t> ad = {0xEA};
+    std::vector<uint8_t> out(in.size());
+    const EVP_AEAD *ccm_instance = EVP_aead_aes_128_ccm_bluetooth();
+    const EVP_AEAD_CTX *aeadCTX = EVP_AEAD_CTX_new(ccm_instance, key.data(), key.size(),
+                                                  EVP_AEAD_DEFAULT_TAG_LENGTH);
+    size_t out_tag_len;
+    std::vector<uint8_t> out_tag(EVP_AEAD_max_overhead(ccm_instance));
+    if (btm_cb.enc_adv_data_log_enabled) {
+      VLOG(1) << "Encr Data Key Material (Key): " << base::HexEncode(key.data(),key.size());
+      VLOG(1) << "Encr Data Key Material (IV): " << base::HexEncode(iv.data(),iv.size());
+      VLOG(1) << "Randomizer: " << base::HexEncode(p_inst->randomizer.data(),
+                                                    p_inst->randomizer.size());
+      VLOG(1) << "Input: " << base::HexEncode(in.data(), in.size());
+      VLOG(1) << "Nonce: " << base::HexEncode(nonce.data(), nonce.size());
+      VLOG(1) << "Input AD: " << base::HexEncode(ad.data(), ad.size());
+    }
+    /* Function below encrypts the Input (From BoringSSL) */
+    int result = EVP_AEAD_CTX_seal_scatter(aeadCTX, out.data(), out_tag.data(), &out_tag_len,
+                                          out_tag.size(), nonce.data(), nonce.size(), in.data(),
+                                          in.size(), nullptr, 0, ad.data(), ad.size());
+    if (btm_cb.enc_adv_data_log_enabled) {
+      VLOG(1) << "Out: " << base::HexEncode(out.data(), out.size());
+      VLOG(1) << "MIC: " << base::HexEncode(out_tag.data(), out_tag.size());
+    }
+    ED_AD_Data.insert(ED_AD_Data.end(), p_inst->randomizer.rbegin(), p_inst->randomizer.rend());
+    ED_AD_Data.insert(ED_AD_Data.end(), out.begin(), out.end());
+    ED_AD_Data.insert(ED_AD_Data.end(), out_tag.begin(), out_tag.end());
+    if (btm_cb.enc_adv_data_log_enabled) {
+      VLOG(1) << "ED AD Data: " << base::HexEncode(ED_AD_Data.data(), ED_AD_Data.size());
+    }
+    /* Below we are forming the LTV for Encrypted Data */
+    ED_AD_Data.insert(ED_AD_Data.begin(), BTM_BLE_AD_TYPE_ED);
+    ED_AD_Data.insert(ED_AD_Data.begin(), ED_AD_Data.size());
+    return ED_AD_Data;
+  }
+
+  void GenerateRandomizer(AdvertisingInstance* p_inst, GenerateRandomizerCb cb) {
+    btsnd_hcic_ble_rand(
+      Bind([](AdvertisingInstance* p_inst, GenerateRandomizerCb cb, BT_OCTET8 rand) {
+          uint16_t randomizer[5];
+          memcpy(randomizer, rand, 5);
+          GenerateRandomizer_cmpl(p_inst, randomizer, cb);
+      },
+      p_inst, cb));
+  }
+
   void GenerateRpa(base::Callback<void(const RawAddress&)> cb) {
     btm_gen_resolvable_private_addr(std::move(cb));
+  }
+
+  void AdvertiseRestart(bool restart, bool enable, AdvertisingInstance *p_inst,
+                                    BleAdvertiserHciInterface* hci_interface) {
+    VLOG(1) << __func__ << " enable: " << enable;
+    if (restart) {
+      if (!enable) {
+        p_inst->enable_status = false;
+        hci_interface->Enable(false, p_inst->inst_id, 0x00, 0x00,
+                              base::DoNothing());
+      }
+      else {
+        p_inst->enable_status = true;
+        hci_interface->Enable(true, p_inst->inst_id, 0x00, 0x00,
+                              base::DoNothing());
+      }
+    }
   }
 
   void ConfigureRpa(AdvertisingInstance* p_inst, MultiAdvCb configuredCb) {
@@ -270,15 +397,17 @@ class BleAdvertisingManagerImpl
            const RawAddress& bda) {
           /* Connectable advertising set must be disabled when updating RPA */
           bool restart = p_inst->IsEnabled() && p_inst->IsConnectable();
+          /* This check below ensures that advertising is restarted regardless of connectability*/
+          if (!p_inst->advertise_data_enc.empty() || !p_inst->scan_response_data_enc.empty()
+              || !p_inst->periodic_adv_data_enc.empty()) {
+            restart = true;
+          }
 
           if (!instance_weakptr.get()) return;
           auto hci_interface = instance_weakptr.get()->GetHciInterface();
+          BleAdvertisingManagerImpl *ptr = instance_weakptr.get();
 
-          if (restart) {
-            p_inst->enable_status = false;
-            hci_interface->Enable(false, p_inst->inst_id, 0x00, 0x00,
-                                  base::DoNothing());
-          }
+          ptr->AdvertiseRestart(restart, false, p_inst, hci_interface);
 
           p_inst->own_address = bda;
           /* set it to controller */
@@ -290,11 +419,117 @@ class BleAdvertisingManagerImpl
                     configuredCb.Run(0x00);
                   },
                   p_inst, configuredCb));
+          /*This covers the Security Requirement
+          of Generating a new Randomizer when the RPA changes.
+          The if block below checks for if Advertising Data includes Encrypted Data.
+          If it does we then call SetData which generates a new Randomizer */
+          if(!p_inst->advertise_data_enc.empty()) {
+            if (btm_cb.enc_adv_data_log_enabled) {
+              VLOG(1) << __func__ << "ConfigureRPA - Encrypted Advertising";
+            }
+            ptr->SetData(p_inst->inst_id, false, p_inst->advertise_data, p_inst->advertise_data_enc,
+                Bind(
+                  [](AdvertisingInstance *p_inst, bool restart,
+                    BleAdvertiserHciInterface* hci_interface,
+                    BleAdvertisingManagerImpl *ptr, MultiAdvCb configuredCb, uint8_t status) {
+                    if (status != 0){
+                      LOG(ERROR) << "Set Data Failed: " << +status;
+                      configuredCb.Run(status);
+                      return;
+                    }
+                    /* This SetData below will result in a new Randomizer to be
+                    generated as long the Scan Response Data also includes Encrypted Data.
+                    If it does not then a new Randomizer will not be generated */
+                    ptr->SetData(p_inst->inst_id, true, p_inst->scan_response_data,
+                        p_inst->scan_response_data_enc,
+                            Bind(
+                              [](AdvertisingInstance *p_inst, bool restart,
+                                BleAdvertiserHciInterface* hci_interface,
+                                BleAdvertisingManagerImpl *ptr, MultiAdvCb configuredCb,
+                                uint8_t status) {
+                                if (status != 0){
+                                  LOG(ERROR) << "Set Scan Response Data Failed: " << +status;
+                                  configuredCb.Run(status);
+                                  return;
+                                }
+                                  /* The if block below will run if periodic advertising data also
+                                  includes encrypted data*/
+                                if (!p_inst->periodic_adv_data_enc.empty() &&
+                                    p_inst->periodic_enabled) {
+                                  if (btm_cb.enc_adv_data_log_enabled) {
+                                    VLOG(1) << "ConfigureRPA - Periodic Encrypted Data Exists";
+                                  }
+                                  ptr->SetPeriodicAdvertisingData(p_inst->inst_id,
+                                      p_inst->periodic_data, p_inst->periodic_adv_data_enc,
+                                          Bind(
+                                            [](AdvertisingInstance *p_inst, bool restart,
+                                              BleAdvertiserHciInterface* hci_interface,
+                                              BleAdvertisingManagerImpl *ptr,
+                                              MultiAdvCb configuredCb, uint8_t status) {
+                                              if (status != 0) {
+                                                LOG(ERROR) << "Set Periodic Data Failed: "
+                                                    << +status;
+                                                configuredCb.Run(status);
+                                                return;
+                                              }
+                                              ptr->AdvertiseRestart(restart,true,p_inst,
+                                                                    hci_interface);
+                                            },
+                                            p_inst, restart, hci_interface, ptr,
+                                            std::move(configuredCb)));
+                                } else {
+                                  ptr->AdvertiseRestart(restart,true,p_inst, hci_interface);
+                                }
+                              },
+                              p_inst, restart, hci_interface, ptr, std::move(configuredCb)));
+                  },
+                  p_inst, restart, hci_interface, ptr, std::move(configuredCb)));
 
-          if (restart) {
-            p_inst->enable_status = true;
-            hci_interface->Enable(true, p_inst->inst_id, 0x00, 0x00,
-                                  base::DoNothing());
+          } else if (!p_inst->scan_response_data_enc.empty()) {
+            if (btm_cb.enc_adv_data_log_enabled) {
+              VLOG(1) << __func__ << " Scan Response Encrypted Data Exists";
+            }
+            ptr->SetData(p_inst->inst_id, true, p_inst->scan_response_data,
+              p_inst->scan_response_data_enc,
+                  Bind(
+                    [](AdvertisingInstance *p_inst, bool restart,
+                      BleAdvertiserHciInterface* hci_interface,
+                      BleAdvertisingManagerImpl *ptr, MultiAdvCb configuredCb,
+                      uint8_t status) {
+                      if (status != 0){
+                        LOG(ERROR) << "Set Scan Response Data Failed: " << +status;
+                        configuredCb.Run(status);
+                        return;
+                      }
+                      ptr->AdvertiseRestart(restart,true,p_inst, hci_interface);
+                    },
+                    p_inst, restart, hci_interface, ptr, std::move(configuredCb)));
+          }
+          /* This else if block handles the case in the scenario where
+          Advertising Data does not include encrypted data,but periodic
+          advertising data does include encrypted advertising data */
+          else if ((!p_inst->periodic_adv_data_enc.empty() && p_inst->periodic_enabled) &&
+                p_inst->advertise_data_enc.empty() && p_inst->scan_response_data_enc.empty()) {
+                  if (btm_cb.enc_adv_data_log_enabled) {
+                    VLOG(1) << "ConfigureRPA - Periodic Encrypted Data Exists";
+                  }
+                  ptr->SetPeriodicAdvertisingData(p_inst->inst_id, p_inst->periodic_data,
+                      p_inst->periodic_adv_data_enc,
+                        Bind(
+                          [](AdvertisingInstance *p_inst, bool restart,
+                            BleAdvertiserHciInterface* hci_interface,
+                            BleAdvertisingManagerImpl *ptr, MultiAdvCb configuredCb,
+                            uint8_t status) {
+                            if (status != 0) {
+                              LOG(ERROR) << "Set Periodic Data Failed: " << +status;
+                              configuredCb.Run(status);
+                              return;
+                            }
+                            ptr->AdvertiseRestart(restart, true, p_inst, hci_interface);
+                          },
+                          p_inst, restart, hci_interface, ptr, std::move(configuredCb)));
+          } else {
+            ptr->AdvertiseRestart(restart, true, p_inst, hci_interface);
           }
         },
         p_inst, std::move(configuredCb)));
@@ -368,7 +603,8 @@ class BleAdvertisingManagerImpl
   void StartAdvertising(uint8_t advertiser_id, MultiAdvCb cb,
                         tBTM_BLE_ADV_PARAMS* params,
                         std::vector<uint8_t> advertise_data,
-                        std::vector<uint8_t> scan_response_data, int duration,
+                        std::vector<uint8_t> scan_response_data,
+                        int duration,
                         MultiAdvCb timeout_cb) override {
     /* a temporary type for holding all the data needed in callbacks below*/
     struct CreatorParams {
@@ -377,7 +613,9 @@ class BleAdvertisingManagerImpl
       MultiAdvCb cb;
       tBTM_BLE_ADV_PARAMS params;
       std::vector<uint8_t> advertise_data;
+      std::vector<uint8_t> advertise_data_enc;
       std::vector<uint8_t> scan_response_data;
+      std::vector<uint8_t> scan_response_data_enc;
       int duration;
       MultiAdvCb timeout_cb;
     };
@@ -390,6 +628,8 @@ class BleAdvertisingManagerImpl
     c->params = *params;
     c->advertise_data = std::move(advertise_data);
     c->scan_response_data = std::move(scan_response_data);
+    c->advertise_data_enc;
+    c->scan_response_data_enc;
     c->duration = duration;
     c->timeout_cb = std::move(timeout_cb);
     c->inst_id = advertiser_id;
@@ -428,36 +668,42 @@ class BleAdvertisingManagerImpl
               return;
             }
 
-            c->self->SetData(c->inst_id, false, std::move(c->advertise_data), Bind(
-              [](c_type c, uint8_t status) {
-                if (!c->self) {
-                  LOG(INFO) << "Stack was shut down";
-                  return;
-                }
+            c->self->SetData(c->inst_id, false, std::move(c->advertise_data),
+                std::move(c->advertise_data_enc),
+                    Bind(
+                      [](c_type c, uint8_t status) {
+                        if (!c->self) {
+                          LOG(INFO) << "Stack was shut down";
+                          return;
+                        }
 
-                if (status != 0) {
-                  LOG(ERROR) << "setting advertise data failed, status: " << +status;
-                  c->cb.Run(status);
-                  return;
-                }
+                        if (status != 0) {
+                          LOG(ERROR) << "setting advertise data failed, status: " << +status;
+                          c->cb.Run(status);
+                          return;
+                        }
 
-                c->self->SetData(c->inst_id, true, std::move(c->scan_response_data), Bind(
-                  [](c_type c, uint8_t status) {
-                    if (!c->self) {
-                      LOG(INFO) << "Stack was shut down";
-                      return;
-                    }
+                        c->self->SetData(c->inst_id, true, std::move(c->scan_response_data),
+                            std::move(c->scan_response_data_enc),
+                                Bind(
+                                  [](c_type c, uint8_t status) {
+                                    if (!c->self) {
+                                      LOG(INFO) << "Stack was shut down";
+                                      return;
+                                    }
 
-                    if (status != 0) {
-                      LOG(ERROR) << "setting scan response data failed, status: " << +status;
-                      c->cb.Run(status);
-                      return;
-                    }
+                                    if (status != 0) {
+                                      LOG(ERROR) << "setting scan response data failed, status: "
+                                          << +status;
+                                      c->cb.Run(status);
+                                      return;
+                                    }
 
-                    c->self->Enable(c->inst_id, true, c->cb, c->duration, 0, std::move(c->timeout_cb));
+                                    c->self->Enable(c->inst_id, true, c->cb, c->duration, 0,
+                                        std::move(c->timeout_cb));
 
-                }, base::Passed(&c)));
-            }, base::Passed(&c)));
+                                }, base::Passed(&c)));
+                    }, base::Passed(&c)));
         }, base::Passed(&c)));
     }, base::Passed(&c)));
     // clang-format on
@@ -465,11 +711,24 @@ class BleAdvertisingManagerImpl
 
   void StartAdvertisingSet(IdTxPowerStatusCb cb, tBTM_BLE_ADV_PARAMS* params,
                            std::vector<uint8_t> advertise_data,
+                           std::vector<uint8_t> advertise_data_enc,
                            std::vector<uint8_t> scan_response_data,
+                           std::vector<uint8_t> scan_response_data_enc,
                            tBLE_PERIODIC_ADV_PARAMS* periodic_params,
                            std::vector<uint8_t> periodic_data,
+                           std::vector<uint8_t> periodic_adv_data_enc,
                            uint16_t duration, uint8_t maxExtAdvEvents,
+                           std::vector<uint8_t> enc_key_value,
                            RegisterCb timeout_cb) override {
+    if (!advertise_data_enc.empty() || !scan_response_data_enc.empty() ||
+      !periodic_adv_data_enc.empty()) {
+        if (!btm_cb.enc_adv_data_enabled) {
+          LOG(ERROR) << __func__ << " Encrypted Advertising Feature" <<
+                                    " not Enabled but Encrypted Data is provided";
+          cb.Run(0,0,ADVERTISE_FAILED_FEATURE_UNSUPPORTED);
+          return;
+        }
+    }
     std::unique_ptr<CreatorParams> c;
     c.reset(new CreatorParams());
 
@@ -477,13 +736,18 @@ class BleAdvertisingManagerImpl
     c->cb = std::move(cb);
     c->params = *params;
     c->advertise_data = std::move(advertise_data);
+    c->advertise_data_enc = std::move(advertise_data_enc);
     c->scan_response_data = std::move(scan_response_data);
+    c->scan_response_data_enc = std::move(scan_response_data_enc);
     c->periodic_params = *periodic_params;
     c->periodic_data = std::move(periodic_data);
+    c->periodic_adv_data_enc = std::move(periodic_adv_data_enc);
     c->duration = duration;
     c->maxExtAdvEvents = maxExtAdvEvents;
     c->timeout_cb = std::move(timeout_cb);
+    c->enc_key_value = std::move(enc_key_value);
 
+    // Check Enc Vectors and Return Error if Encr Adv
     int own_address_type =
         BTM_BleLocalPrivacyEnabled() ? BLE_ADDR_RANDOM : BLE_ADDR_PUBLIC;
     if (params->own_address_type != BLE_ADDR_ANONYMOUS
@@ -508,7 +772,7 @@ class BleAdvertisingManagerImpl
         }
 
         c->inst_id = advertiser_id;
-
+        c->self->adv_inst[c->inst_id].enc_key_value = c->enc_key_value;
         c->self->SetParameters(c->inst_id, &c->params, Bind(
           [](c_type c, uint8_t status, int8_t tx_power) {
             if (!c->self) {
@@ -559,50 +823,51 @@ class BleAdvertisingManagerImpl
 
   void StartAdvertisingSetAfterAddressPart(c_type c) {
     c->self->SetData(
-        c->inst_id, false, std::move(c->advertise_data),
-        Bind(
-            [](c_type c, uint8_t status) {
-              if (!c->self) {
-                LOG(INFO) << "Stack was shut down";
-                return;
-              }
+        c->inst_id, false, std::move(c->advertise_data), std::move(c->advertise_data_enc),
+            Bind(
+                [](c_type c, uint8_t status) {
+                  if (!c->self) {
+                    LOG(INFO) << "Stack was shut down";
+                    return;
+                  }
 
-              if (status != 0) {
-                c->self->Unregister(c->inst_id);
-                LOG(ERROR) << "setting advertise data failed, status: "
-                           << +status;
-                c->cb.Run(0, 0, status);
-                return;
-              }
-
-              c->self->SetData(
-                  c->inst_id, true, std::move(c->scan_response_data),
-                  Bind(
-                      [](c_type c, uint8_t status) {
-                        if (!c->self) {
-                          LOG(INFO) << "Stack was shut down";
-                          return;
-                        }
-
-                        if (status != 0) {
-                          c->self->Unregister(c->inst_id);
-                          LOG(ERROR)
-                              << "setting scan response data failed, status: "
+                  if (status != 0) {
+                    c->self->Unregister(c->inst_id);
+                    LOG(ERROR) << "setting advertise data failed, status: "
                               << +status;
-                          c->cb.Run(0, 0, status);
-                          return;
-                        }
+                    c->cb.Run(0, 0, status);
+                    return;
+                  }
 
-                        if (c->periodic_params.enable) {
-                          c->self->StartAdvertisingSetPeriodicPart(
-                              std::move(c));
-                        } else {
-                          c->self->StartAdvertisingSetFinish(std::move(c));
-                        }
-                      },
-                      base::Passed(&c)));
-            },
-            base::Passed(&c)));
+                  c->self->SetData(
+                      c->inst_id, true, std::move(c->scan_response_data),
+                      std::move(c->scan_response_data_enc),
+                          Bind(
+                              [](c_type c, uint8_t status) {
+                                if (!c->self) {
+                                  LOG(INFO) << "Stack was shut down";
+                                  return;
+                                }
+
+                                if (status != 0) {
+                                  c->self->Unregister(c->inst_id);
+                                  LOG(ERROR)
+                                      << "setting scan response data failed, status: "
+                                      << +status;
+                                  c->cb.Run(0, 0, status);
+                                  return;
+                                }
+
+                                if (c->periodic_params.enable) {
+                                  c->self->StartAdvertisingSetPeriodicPart(
+                                      std::move(c));
+                                } else {
+                                  c->self->StartAdvertisingSetFinish(std::move(c));
+                                }
+                              },
+                              base::Passed(&c)));
+                },
+                base::Passed(&c)));
   }
 
   void StartAdvertisingSetPeriodicPart(c_type c) {
@@ -623,38 +888,39 @@ class BleAdvertisingManagerImpl
           return;
         }
 
-        c->self->SetPeriodicAdvertisingData(c->inst_id, std::move(c->periodic_data), Bind(
-          [](c_type c, uint8_t status) {
-            if (!c->self) {
-              LOG(INFO) << "Stack was shut down";
-              return;
-            }
+        c->self->SetPeriodicAdvertisingData(c->inst_id, std::move(c->periodic_data),
+            std::move(c->periodic_adv_data_enc), Bind(
+                [](c_type c, uint8_t status) {
+                  if (!c->self) {
+                    LOG(INFO) << "Stack was shut down";
+                    return;
+                  }
 
-            if (status != 0) {
-              c->self->Unregister(c->inst_id);
-              LOG(ERROR) << "setting periodic parameters failed, status: " << +status;
-              c->cb.Run(0, 0, status);
-              return;
-            }
+                  if (status != 0) {
+                    c->self->Unregister(c->inst_id);
+                    LOG(ERROR) << "setting periodic parameters failed, status: " << +status;
+                    c->cb.Run(0, 0, status);
+                    return;
+                  }
 
-            c->self->SetPeriodicAdvertisingEnable(c->inst_id, c->periodic_params.enable, Bind(
-              [](c_type c, uint8_t status) {
-                if (!c->self) {
-                  LOG(INFO) << "Stack was shut down";
-                  return;
-                }
+                  c->self->SetPeriodicAdvertisingEnable(c->inst_id, c->periodic_params.enable, Bind(
+                    [](c_type c, uint8_t status) {
+                      if (!c->self) {
+                        LOG(INFO) << "Stack was shut down";
+                        return;
+                      }
 
-                if (status != 0) {
-                  c->self->Unregister(c->inst_id);
-                  LOG(ERROR) << "enabling periodic advertising failed, status: " << +status;
-                  c->cb.Run(0, 0, status);
-                  return;
-                }
+                      if (status != 0) {
+                        c->self->Unregister(c->inst_id);
+                        LOG(ERROR) << "enabling periodic advertising failed, status: " << +status;
+                        c->cb.Run(0, 0, status);
+                        return;
+                      }
 
-                c->self->StartAdvertisingSetFinish(std::move(c));
+                      c->self->StartAdvertisingSetFinish(std::move(c));
 
-              }, base::Passed(&c)));
-        }, base::Passed(&c)));
+                    }, base::Passed(&c)));
+            }, base::Passed(&c)));
     }, base::Passed(&c)));
     // clang-format on
   }
@@ -824,7 +1090,13 @@ class BleAdvertisingManagerImpl
   }
 
   void SetData(uint8_t inst_id, bool is_scan_rsp, std::vector<uint8_t> data,
-               MultiAdvCb cb) override {
+               std::vector<uint8_t> encr_data, MultiAdvCb cb) override {
+    if (!encr_data.empty() && !btm_cb.enc_adv_data_enabled) {
+      LOG(ERROR) << __func__ << " Encrypted Advertising Feature" <<
+                                " not Enabled but Encrypted Data is provided";
+      cb.Run(ADVERTISE_FAILED_FEATURE_UNSUPPORTED);
+      return;
+    }
     VLOG(1) << __func__ << " inst_id: " << +inst_id;
     bool update_flags = false;
     if (inst_id >= inst_count) {
@@ -832,10 +1104,32 @@ class BleAdvertisingManagerImpl
       return;
     }
 
+    BleAdvertisingManagerImpl *ptr = instance_weakptr.get();
     AdvertisingInstance* p_inst = &adv_inst[inst_id];
-    VLOG(1) << "is_scan_rsp = " << is_scan_rsp;
-
-    if(stack_config_get_interface()->get_pts_le_nonconn_adv_enabled()
+    bool restart = false;
+    if (((data.size() + encr_data.size()) > EXT_ADV_DATA_LEN_MAX) && p_inst->IsEnabled()) {
+      restart = true;
+      GetHciInterface()->Enable(false, inst_id, p_inst->duration,
+                                p_inst->maxExtAdvEvents, base::DoNothing());
+    }
+    if (is_scan_rsp) {
+      if (btm_cb.enc_adv_data_log_enabled) {
+        VLOG(1) << __func__ << " Scan Response";
+      }
+      p_inst->scan_response_data = data;
+      p_inst->scan_response_data_enc = encr_data;
+    } else {
+      if (btm_cb.enc_adv_data_log_enabled) {
+        VLOG(1) << __func__ << " Advertise";
+      }
+      p_inst->advertise_data = data;
+      p_inst->advertise_data_enc = encr_data;
+    }
+    if (btm_cb.enc_adv_data_log_enabled) {
+      VLOG(1) << __func__ << " Data " << base::HexEncode(data.data(),data.size());
+      VLOG(1) << __func__ << " Encr Data " << base::HexEncode(encr_data.data(), encr_data.size());
+    }
+    if (stack_config_get_interface()->get_pts_le_nonconn_adv_enabled()
        || stack_config_get_interface()->get_pts_le_conn_nondisc_adv_enabled())
       update_flags = true;
 
@@ -856,20 +1150,95 @@ class BleAdvertisingManagerImpl
       data.insert(data.begin(), flags.begin(), flags.end());
     }
 
+    /* This is the check to see if there is any data that needs to be encrypted */
+    if (!encr_data.empty()) {
+      GenerateRandomizer(p_inst,
+      Bind(
+        [](AdvertisingInstance *p_inst, std::vector<uint8_t> data,
+          std::vector<uint8_t> encr_data, BleAdvertisingManagerImpl *ptr,
+          bool is_scan_rsp, bool restart, MultiAdvCb cb, uint8_t status) {
+          if (status != 0) {
+            LOG(ERROR) << " Generating Randomizer Failed" << +status;
+            cb.Run(status);
+            return;
+          }
+
+          for (size_t i = 0; (i + 2) < data.size();) {
+            if (data[i + 1] == HCI_EIR_TX_POWER_LEVEL_TYPE) {
+              data[i + 2] = p_inst->tx_power;
+            }
+            i += data[i] + 1;
+          }
+
+          for (size_t i = 0; (i + 2) < encr_data.size();) {
+            if (encr_data[i + 1] == HCI_EIR_TX_POWER_LEVEL_TYPE) {
+              encr_data[i + 2] = p_inst->tx_power;
+            }
+            i += encr_data[i] + 1;
+          }
+
+          encr_data = ptr->EncryptedAdvertising(p_inst, encr_data);
+          data.insert(data.end(), encr_data.begin(), encr_data.end());
+          if (btm_cb.enc_adv_data_log_enabled) {
+            VLOG(1) << __func__ << " Complete Data: " << base::HexEncode(data.data(), data.size());
+          }
+          if (restart) {
+            ptr->DivideAndSendData(p_inst->inst_id, data, false, Bind(
+              [](AdvertisingInstance *p_inst, BleAdvertisingManagerImpl *ptr,
+                MultiAdvCb cb, uint8_t status) {
+                  if (status != 0) {
+                    LOG(ERROR) << "Failed to Start Advertisement";
+                    cb.Run(status);
+                    return;
+                  }
+                  ptr->GetHciInterface()->Enable(true, p_inst->inst_id, p_inst->duration,
+                                            p_inst->maxExtAdvEvents, cb);
+              },
+              p_inst, ptr, std::move(cb)),
+            base::Bind(&BleAdvertisingManagerImpl::SetDataAdvDataSender,
+                      ptr->weak_factory_.GetWeakPtr(), is_scan_rsp));
+          } else {
+            ptr->DivideAndSendData(
+                  p_inst->inst_id, data, false, cb,
+                  base::Bind(&BleAdvertisingManagerImpl::SetDataAdvDataSender,
+                            ptr->weak_factory_.GetWeakPtr(), is_scan_rsp));
+          }
+        },
+        p_inst, data, encr_data, ptr, is_scan_rsp, restart, std::move(cb)));
+    } else {
+    /* Encr_data is empty so there is no data that needs to be encypted.
+      We proceed with Unencrypted Advertising */
     // Find and fill TX Power with the correct value.
     // The TX Power section is a 3 byte section.
-    for (size_t i = 0; (i + 2) < data.size();) {
-      if (data[i + 1] == HCI_EIR_TX_POWER_LEVEL_TYPE) {
-        data[i + 2] = adv_inst[inst_id].tx_power;
+      for (size_t i = 0; (i + 2) < data.size();) {
+        if (data[i + 1] == HCI_EIR_TX_POWER_LEVEL_TYPE) {
+          data[i + 2] = adv_inst[inst_id].tx_power;
+        }
+        i += data[i] + 1;
       }
-      i += data[i] + 1;
-    }
 
-    VLOG(1) << "data is: " << base::HexEncode(data.data(), data.size());
-    DivideAndSendData(
-        inst_id, data, false, cb,
+      if (restart) {
+        DivideAndSendData( p_inst->inst_id, data, false, Bind(
+          [](AdvertisingInstance *p_inst, BleAdvertisingManagerImpl *ptr,
+            MultiAdvCb cb, uint8_t status) {
+            if (status != 0) {
+              LOG(ERROR) << "Failed to Start Advertisement";
+              cb.Run(status);
+              return;
+            }
+            ptr->GetHciInterface()->Enable(true, p_inst->inst_id, p_inst->duration,
+                                      p_inst->maxExtAdvEvents, cb);
+          },
+          p_inst, ptr, std::move(cb)),
         base::Bind(&BleAdvertisingManagerImpl::SetDataAdvDataSender,
-                   weak_factory_.GetWeakPtr(), is_scan_rsp));
+                  weak_factory_.GetWeakPtr(), is_scan_rsp));
+      } else {
+        DivideAndSendData(
+            inst_id, data, false, cb,
+            base::Bind(&BleAdvertisingManagerImpl::SetDataAdvDataSender,
+                      weak_factory_.GetWeakPtr(), is_scan_rsp));
+      }
+    }
   }
 
   void SetDataAdvDataSender(uint8_t is_scan_rsp, uint8_t inst_id,
@@ -912,13 +1281,11 @@ class BleAdvertisingManagerImpl
 
     uint8_t adv_data_length_max =
         is_periodic_adv_data ? PERIODIC_ADV_DATA_LEN_MAX : EXT_ADV_DATA_LEN_MAX;
-
     bool moreThanOnePacket = dataSize - offset > adv_data_length_max;
     uint8_t operation = isFirst ? moreThanOnePacket ? FIRST : COMPLETE
                                 : moreThanOnePacket ? INTERMEDIATE : LAST;
     int length = moreThanOnePacket ? adv_data_length_max : dataSize - offset;
     int newOffset = offset + length;
-
     sender.Run(
         inst_id, operation, length, data.data() + offset,
         Bind(&BleAdvertisingManagerImpl::DivideAndSendDataRecursively, false,
@@ -937,20 +1304,112 @@ class BleAdvertisingManagerImpl
   }
 
   void SetPeriodicAdvertisingData(uint8_t inst_id, std::vector<uint8_t> data,
+                                  std::vector<uint8_t> encr_data,
                                   MultiAdvCb cb) override {
+    if (!encr_data.empty() && !btm_cb.enc_adv_data_enabled) {
+      LOG(ERROR) << __func__ << " Encrypted Advertising Feature" <<
+                                " not Enabled but Encrypted Data is provided";
+      cb.Run(ADVERTISE_FAILED_FEATURE_UNSUPPORTED);
+      return;
+    }
     VLOG(1) << __func__ << " inst_id: " << +inst_id;
 
-    VLOG(1) << "data is: " << base::HexEncode(data.data(), data.size());
+    BleAdvertisingManagerImpl *ptr = instance_weakptr.get();
+    AdvertisingInstance* p_inst = &adv_inst[inst_id];
+    p_inst->periodic_data = data;
+    p_inst->periodic_adv_data_enc = encr_data;
+
+    bool restartPeriodic = false;
+    bool restart = false;
+    if (((data.size() + encr_data.size()) > PERIODIC_ADV_DATA_LEN_MAX)) {
+      if (p_inst->periodic_enabled) {
+        SetPeriodicAdvertisingEnable(inst_id, false, base::DoNothing());
+        restartPeriodic = true;
+      }
+    }
+
+    if (btm_cb.enc_adv_data_log_enabled) {
+      VLOG(1) << __func__ << " Data: " << base::HexEncode(data.data(), data.size());
+      VLOG(1) << __func__ << " Encr Data: " << base::HexEncode(encr_data.data(), encr_data.size());
+    }
+
     if ((data.size() > 3) && (data[0] == 3 && data[1] == 0x16
          && data[2] == 0x51 && data[3] == 0x18)) {
       VLOG(1) << __func__ << "Broadcast UUID";
       adv_inst[inst_id].skip_rpa_count = 15;
       adv_inst[inst_id].skip_rpa = true;
     }
-    DivideAndSendData(
-        inst_id, data, true, cb,
-        base::Bind(&BleAdvertiserHciInterface::SetPeriodicAdvertisingData,
-                   base::Unretained(GetHciInterface())));
+
+    if ((encr_data.size() > 3) && (encr_data[0] == 3 && encr_data[1] == 0x16
+         && encr_data[2] == 0x51 && encr_data[3] == 0x18)) {
+      VLOG(1) << __func__ << "Broadcast UUID";
+      adv_inst[inst_id].skip_rpa_count = 15;
+      adv_inst[inst_id].skip_rpa = true;
+    }
+
+    /* This is the check to see if there is any periodic advertising data that needs to be encrypted */
+    if (!encr_data.empty()) {
+      GenerateRandomizer(p_inst,
+      Bind(
+        [](AdvertisingInstance *p_inst, std::vector<uint8_t> data, std::vector<uint8_t> encr_data,
+        BleAdvertisingManagerImpl *ptr, bool restart, bool restartPeriodic,
+        MultiAdvCb cb, uint8_t status){
+          if (status != 0) {
+            LOG(ERROR) << " Generating Randomizer Failed" << +status;
+            cb.Run(status);
+            return;
+          }
+          encr_data = ptr->EncryptedAdvertising(p_inst, encr_data);
+          data.insert(data.end(), encr_data.begin(), encr_data.end());
+          if (btm_cb.enc_adv_data_log_enabled) {
+            VLOG(1) << __func__ << " Complete Data: " << base::HexEncode(data.data(), data.size());
+          }
+          if (restartPeriodic) {
+            ptr->DivideAndSendData(p_inst->inst_id, data, true, Bind(
+              [](AdvertisingInstance *p_inst, BleAdvertisingManagerImpl *ptr,
+                bool restart, MultiAdvCb cb, uint8_t status) {
+                  if (status != 0) {
+                    LOG(ERROR) << "Failed to Start Advertisement";
+                    cb.Run(status);
+                    return;
+                  }
+                  ptr->SetPeriodicAdvertisingEnable(p_inst->inst_id,true, cb);
+              },
+              p_inst, ptr, restart, std::move(cb)),
+            base::Bind(&BleAdvertiserHciInterface::SetPeriodicAdvertisingData,
+                base::Unretained(ptr->GetHciInterface())));
+          } else {
+          ptr->DivideAndSendData(
+              p_inst->inst_id, data, true, cb,
+              base::Bind(&BleAdvertiserHciInterface::SetPeriodicAdvertisingData,
+                        base::Unretained(ptr->GetHciInterface())));
+          }
+        },
+        p_inst, data, encr_data, ptr, restart, restartPeriodic, std::move(cb)));
+    } else {
+      /* Proceed with unencrypted periodic advertising */
+      if (restartPeriodic) {
+        ptr->DivideAndSendData(
+          p_inst->inst_id, data, true, Bind(
+            [](AdvertisingInstance *p_inst, BleAdvertisingManagerImpl *ptr,
+            MultiAdvCb cb, uint8_t status) {
+              if (status != 0) {
+                LOG(ERROR) << "Failed to Start Advertisement";
+                cb.Run(status);
+                return;
+              }
+              ptr->SetPeriodicAdvertisingEnable(p_inst->inst_id,true, cb);
+            },
+            p_inst, ptr, std::move(cb)),
+          base::Bind(&BleAdvertiserHciInterface::SetPeriodicAdvertisingData,
+              base::Unretained(ptr->GetHciInterface())));
+      } else {
+      DivideAndSendData(
+          inst_id, data, true, cb,
+          base::Bind(&BleAdvertiserHciInterface::SetPeriodicAdvertisingData,
+                    base::Unretained(GetHciInterface())));
+      }
+    }
   }
 
   void SetPeriodicAdvertisingEnable(uint8_t inst_id, uint8_t enable,
@@ -1110,11 +1569,17 @@ class BleAdvertisingManagerImpl
 
     if (adv_inst[inst_id].IsEnabled()) {
       p_inst->enable_status = false;
+      p_inst->advertise_data.clear();
+      p_inst->advertise_data_enc.clear();
+      p_inst->scan_response_data.clear();
+      p_inst->scan_response_data_enc.clear();
       GetHciInterface()->Enable(false, inst_id, 0x00, 0x00, base::DoNothing());
     }
 
     if (p_inst->periodic_enabled) {
       p_inst->periodic_enabled = false;
+      p_inst->periodic_data.clear();
+      p_inst->periodic_adv_data_enc.clear();
       GetHciInterface()->SetPeriodicAdvertisingEnable(false, inst_id,
                                                       base::DoNothing());
     }
@@ -1366,7 +1831,6 @@ void btm_ble_adv_init() {
 
   if (BleAdvertiserHciInterface::Get()->QuirkAdvertiserZeroHandle()) {
     // If handle 0 can't be used, register advertiser for it, but never use it.
-    // TODO: avoid generating/rotating RPA for it
     BleAdvertisingManager::Get().get()->RegisterAdvertiser(base::DoNothing());
   }
   auto ble_adv_mgr_ptr = (BleAdvertisingManagerImpl*)BleAdvertisingManager::Get().get();

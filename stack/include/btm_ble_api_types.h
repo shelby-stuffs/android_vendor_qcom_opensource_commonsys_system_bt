@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #ifndef BTM_BLE_API_TYPES_H
@@ -327,6 +331,7 @@ typedef void(tBTM_RAND_ENC_CB)(tBTM_RAND_ENC* p1);
 
 #define BTM_BLE_AD_TYPE_APPEARANCE 0x19
 #define BTM_BLE_AD_TYPE_RSI HCI_EIR_RSI_TYPE /* 0x2E */
+#define BTM_BLE_AD_TYPE_ED 0x31
 
 
 /*  Security settings used with L2CAP LE COC */
