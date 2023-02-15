@@ -345,18 +345,20 @@ void bta_gattc_process_api_open(tBTA_GATTC_DATA* p_msg) {
           p_msg->api_conn.remote_bda = map_addr;
         }
       } else {
-        tBT_DEVICE_TYPE dev_type;
-        tBLE_ADDR_TYPE addr_type;
+        if (!p_msg->api_conn.opportunistic) {
+          tBT_DEVICE_TYPE dev_type;
+          tBLE_ADDR_TYPE addr_type;
 
-        BTM_ReadDevInfo(bd_addr, &dev_type, &addr_type);
-        bool addr_is_rpa = (addr_type == BLE_ADDR_RANDOM && BTM_BLE_IS_RESOLVE_BDA(bd_addr));
-        LOG(INFO) << __func__ << " -- addr_is_rpa " << addr_is_rpa;
-        if (addr_is_rpa) {
-          dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
-          p_msg->api_conn.remote_bda = map_addr;
-        } else if (!is_remote_support_adv_audio(map_addr)) {
-          dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
-          p_msg->api_conn.remote_bda = map_addr;
+          BTM_ReadDevInfo(bd_addr, &dev_type, &addr_type);
+          bool addr_is_rpa = (addr_type == BLE_ADDR_RANDOM && BTM_BLE_IS_RESOLVE_BDA(bd_addr));
+          LOG(INFO) << __func__ << " -- addr_is_rpa " << addr_is_rpa;
+          if (addr_is_rpa) {
+            dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
+            p_msg->api_conn.remote_bda = map_addr;
+          } else if (!is_remote_support_adv_audio(map_addr)) {
+            dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
+            p_msg->api_conn.remote_bda = map_addr;
+          }
         }
       }
     }

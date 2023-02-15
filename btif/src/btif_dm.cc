@@ -180,6 +180,7 @@ typedef struct {
   bt_bond_state_t state;
   RawAddress static_bdaddr;
   RawAddress bd_addr;
+  RawAddress lea_bd_addr;
   tBTM_BOND_TYPE bond_type;
   uint8_t pin_code_len;
   uint8_t is_ssp;
@@ -953,6 +954,7 @@ static void btif_dm_cb_create_bond(const RawAddress& bd_addr,
      __func__);
       btif_dm_cancel_discovery();
       pairing_cb.is_adv_audio = 1;
+      pairing_cb.lea_bd_addr = bd_addr;
     } else {
       if ((addr_type == BLE_ADDR_RANDOM) &&
           ((device_type & BT_DEVICE_TYPE_BLE) == BT_DEVICE_TYPE_BLE)) {
@@ -4430,11 +4432,13 @@ uint16_t btif_dm_get_le_links() {
  *
  ******************************************************************************/
 void btif_get_pairing_cb_info(bt_bond_state_t* state, uint8_t* sdp_attempts,
-                             RawAddress* bd_addr, RawAddress* static_bdaddr) {
+                             RawAddress* bd_addr, RawAddress* static_bdaddr,
+                             RawAddress* lea_bd_addr) {
   *state = pairing_cb.state;
   *bd_addr = pairing_cb.bd_addr;
   *sdp_attempts = pairing_cb.sdp_attempts;
   *static_bdaddr= pairing_cb.static_bdaddr;
+  *lea_bd_addr = pairing_cb.lea_bd_addr;
 }
 
 /*******************************************************************************
