@@ -36,7 +36,7 @@
 #include "l2c_api.h"
 #include "osi/include/osi.h"
 #include "utl.h"
-
+#define COUNTRY_CODE_RANGE_MAX 35
 /*****************************************************************************
  *  Constants
  ****************************************************************************/
@@ -215,7 +215,10 @@ static void bta_hh_sdp_cback(uint16_t result, uint16_t attr_mask,
         bta_hh_add_device_to_list(p_cb, hdl, attr_mask, &sdp_rec->dscp_info,
                                   sdp_rec->sub_class, sdp_rec->ssr_max_latency,
                                   sdp_rec->ssr_min_tout, p_cb->app_id);
-
+        if (sdp_rec->ctry_code > COUNTRY_CODE_RANGE_MAX) {
+          APPL_TRACE_EVENT("%s: country code out of range, setting it to 0", __func__);
+          sdp_rec->ctry_code = 0;
+        }
         p_cb->dscp_info.ctry_code = sdp_rec->ctry_code;
 
         status = BTA_HH_OK;
