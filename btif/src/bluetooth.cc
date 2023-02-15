@@ -609,6 +609,33 @@ static int set_event_filter_connection_setup_all_devices() {
   return BT_STATUS_SUCCESS;
 }
 
+static bool interop_match_addr(const char* feature_name,
+                               const RawAddress* addr) {
+  return false;
+}
+
+static bool interop_match_name(const char* feature_name, const char* name) {
+  return false;
+}
+
+static bool interop_match_addr_or_name(const char* feature_name,
+                                       const RawAddress* addr) {
+  return false;
+}
+
+static void interop_database_add_remove_addr(bool do_add,
+                                             const char* feature_name,
+                                             const RawAddress* addr,
+                                             int length) {
+  return;
+}
+
+static void interop_database_add_remove_name(bool do_add,
+                                             const char* feature_name,
+                                             const char* name) {
+  return;
+}
+
 EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     sizeof(bluetoothInterface),
     init,
@@ -660,6 +687,11 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     set_event_filter_inquiry_result_all_devices,
     get_wbs_supported,
     metadata_changed,
+    interop_match_addr,
+    interop_match_name,
+    interop_match_addr_or_name,
+    interop_database_add_remove_addr,
+    interop_database_add_remove_name,
 };
 
 void invoke_oob_data_request_cb(tBT_TRANSPORT t, bool valid, Octet16 c,
