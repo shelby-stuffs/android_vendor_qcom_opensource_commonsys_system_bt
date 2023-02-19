@@ -50,6 +50,12 @@
  *
  ******************************************************************************/
 
+/*
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
+
 #ifndef HCIDEFS_H
 #define HCIDEFS_H
 
@@ -1660,6 +1666,8 @@ typedef struct {
 // host add_on features
 #define HCI_HOST_LEA_UNICAST_SUPPORTED(x) ((x)[0] & 0x01)
 #define HCI_HOST_QHS_SUPPORTED(x) ((x)[0] & 0x20)
+
+#define HCI_VENDOR_BQR5_SUPPORTED(x) ((x)[4] & 0x20)
 
 /* Simple Pairing Options */
 #define HCI_REMOTE_PUBLIC_KEY_VALIDATION_SUPPORTED(x) ((x) & 0x01)
