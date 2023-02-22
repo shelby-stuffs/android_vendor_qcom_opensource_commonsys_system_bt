@@ -311,6 +311,10 @@ class BleScannerInterfaceImpl : public BleScannerInterface {
                               jni_thread_wrapper(FROM_HERE, std::move(cb))));
   }
 
+  bool IsMsftSupported() override {
+    return false;
+  }
+
   void MsftAdvMonitorAdd(MsftAdvMonitor monitor,
                          MsftAdvMonitorAddCallback cb) override {
 
