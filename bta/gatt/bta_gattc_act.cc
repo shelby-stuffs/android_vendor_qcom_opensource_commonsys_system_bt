@@ -724,14 +724,14 @@ void bta_gattc_close(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
   bta_gattc_clcb_dealloc(p_clcb);
 
   if (p_data->hdr.event == BTA_GATTC_API_CLOSE_EVT) {
-    GATT_Disconnect(p_data->hdr.layer_specific);
+    cb_data.close.status = GATT_Disconnect(p_data->hdr.layer_specific);
     LOG(INFO) << __func__
               << "Local close event client_if: "
               << loghex(cb_data.close.client_if)
               << ", conn_id: " << cb_data.close.conn_id
               << ", reason: " << cb_data.close.reason;
   } else if (p_data->hdr.event == BTA_GATTC_INT_DISCONN_EVT) {
-    cb_data.close.status = p_data->int_conn.reason;
+    cb_data.close.status = static_cast<tGATT_STATUS>(p_data->int_conn.reason);
     cb_data.close.reason = p_data->int_conn.reason;
     LOG(INFO) << __func__
               << "Peer close disconnect event client_if: "
