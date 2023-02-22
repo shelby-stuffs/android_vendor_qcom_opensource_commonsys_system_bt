@@ -920,6 +920,12 @@ void btm_vendor_specific_evt(uint8_t* p, uint8_t evt_len) {
           return;
         }
         break;
+      case MSG_QBCE_QLE_CIS_CONFIGURATION_STATE:
+        btm_ble_qle_cis_configuration_state_event(pp);
+        break;
+      case MSG_QBCE_QLE_CIS_UPDATED:
+        btm_ble_qle_cis_updated_event(pp);
+        break;
       default:
         BTM_TRACE_ERROR("%s: unknown msg type: %d", __func__, vse_msg_type);
         break;

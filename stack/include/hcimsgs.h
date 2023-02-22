@@ -970,6 +970,7 @@ extern void btsnd_hcic_set_reserved_lt_addr(uint8_t lt_addr);
 /* Constants for HCI Command length */
 #define HCI_PARAM_SIZE_SET_CIG_PARAM_FIXED 15
 #define HCI_PARAM_SIZE_SET_CIG_PARAM_TEST_FIXED 15
+#define HCI_PARAM_SIZE_ADD_CIG_CONFIG_FIXED 18
 #define HCI_PARAM_SIZE_SET_ISO_DATA_PATH 13
 #define HCI_PARAM_SIZE_REMOVE_ISO_DATA_PATH 3
 #define HCI_PARAM_SIZE_SET_BLE_HOST_FEATURE 2
@@ -998,6 +999,20 @@ extern void btsnd_hcic_ble_set_cig_param_test(uint8_t cig_id,
                                     uint8_t framing,
                                     uint8_t cis_count,
                                     std::vector<tBTM_BLE_CIS_TEST_CONFIG> cis_configs,
+                                    base::Callback<void(uint8_t*, uint16_t)> cb);
+
+void btsnd_hcic_ble_add_cig_config(uint8_t cig_id,
+                                    uint8_t config_id,
+                                    uint8_t mode_id,
+                                    const SDU_INTERVAL sdu_int_m_to_s,
+                                    const SDU_INTERVAL sdu_int_s_to_m,
+                                    uint8_t slave_clock_accuracy,
+                                    uint8_t packing,
+                                    uint8_t framing,
+                                    uint16_t max_transport_latency_m_to_s,
+                                    uint16_t max_transport_latency_s_to_m,
+                                    uint8_t cis_count,
+                                    std::vector<tBTM_BLE_CIS_CONFIG> cis_config,
                                     base::Callback<void(uint8_t*, uint16_t)> cb);
 
 extern void btsnd_hcic_ble_create_cis(uint8_t cis_count,

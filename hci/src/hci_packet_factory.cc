@@ -286,6 +286,19 @@ static BT_HDR* make_qbce_read_qll_local_supported_features() {
   return packet;
 }
 
+static BT_HDR* make_qbce_qle_set_host_feature(uint8_t bit_num, uint8_t bit_val) {
+  uint8_t* stream;
+  const uint8_t parameter_size = 3;
+  BT_HDR* packet =
+      make_command(HCI_VS_QBCE_OCF, parameter_size, &stream);
+
+  UINT8_TO_STREAM(stream, QBCE_QLE_SET_HOST_FEATURE);
+  UINT8_TO_STREAM(stream, bit_num);
+  UINT8_TO_STREAM(stream, bit_val);
+
+  return packet;
+}
+
 // Internal functions
 
 static BT_HDR* make_command_no_params(uint16_t opcode) {
@@ -354,6 +367,7 @@ static const hci_packet_factory_t interface = {
 #ifdef VLOC_FEATURE
     make_ble_vloc_read_local_supported_capabilities,
 #endif
+    make_qbce_qle_set_host_feature,
 };
 
 const hci_packet_factory_t* hci_packet_factory_get_interface() {

@@ -66,6 +66,7 @@ typedef struct {
 #ifdef VLOC_FEATURE
   BT_HDR* (*make_ble_vloc_read_local_supported_capabilities)(void);
 #endif
+  BT_HDR* (*make_qbce_qle_set_host_feature)(uint8_t bit_num, uint8_t bit_val);
 } hci_packet_factory_t;
 
 const hci_packet_factory_t* hci_packet_factory_get_interface();
