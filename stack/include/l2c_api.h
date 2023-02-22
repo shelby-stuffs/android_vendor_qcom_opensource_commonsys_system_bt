@@ -175,7 +175,8 @@ typedef uint8_t tL2CAP_CHNL_DATA_RATE;
 #define L2C_SOME_CONNS_ACCEPTED 4
 #define L2C_NO_RESOURCE_AVALIABLE 5
 #define L2C_INVALID_CONNECTION_PARAMS 6
-
+// 5.4 spec
+#define L2C_INVALID_MODE 7
 /*****************************************************************************
  *  Type Definitions
  ****************************************************************************/

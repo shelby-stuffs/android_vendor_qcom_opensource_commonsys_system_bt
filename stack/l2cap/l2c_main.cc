@@ -969,6 +969,13 @@ static void process_l2cap_cmd(tL2C_LCB* p_lcb, uint8_t* p, uint16_t pkt_len) {
         for (int i = 0; i < num_chnls; i++) {
           STREAM_TO_UINT16(dest_cid[i], p);
         }
+         // 5.4 spec : routing to ERTM for BREDR
+        if (con_info.psm == BT_PSM_EATT && p_lcb &&
+            p_lcb->transport == BT_TRANSPORT_BR_EDR) {
+          L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used");
+          return;
+        }
+
         l2cu_process_peer_conn_request(p_lcb, &p_conf_info, &con_info, dest_cid,
                                     num_chnls, id);
       }
@@ -976,6 +983,11 @@ static void process_l2cap_cmd(tL2C_LCB* p_lcb, uint8_t* p, uint16_t pkt_len) {
 
       case L2CAP_CMD_CREDIT_BASED_CONNECTION_RSP:
       {
+        // 5.4 spec : routing to ERTM for BREDR
+        if (p_lcb && p_lcb->transport == BT_TRANSPORT_BR_EDR) {
+          L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used.");
+          return;
+        }
         //TODO check to use similar to BREDR CONFIG RSP
         L2CAP_TRACE_DEBUG("Recv L2CAP_CMD_CREDIT_BASED_CONNECTION_RSP");
         /* For all channels, see whose identifier matches this id */
@@ -1015,6 +1027,12 @@ static void process_l2cap_cmd(tL2C_LCB* p_lcb, uint8_t* p, uint16_t pkt_len) {
       break;
 
       case L2CAP_CMD_CREDIT_BASED_RECONFIGURE_REQ:
+        // 5.4 spec : ertm should be used for bredr
+        if (p_lcb && p_lcb->transport == BT_TRANSPORT_BR_EDR) {
+          L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used");
+          return;
+        }
+
         if (p + 4 > p_next_cmd) {
           android_errorWriteLog(0x534e4554, "74202041");
           return;
@@ -1052,6 +1070,11 @@ static void process_l2cap_cmd(tL2C_LCB* p_lcb, uint8_t* p, uint16_t pkt_len) {
         break;
 
       case L2CAP_CMD_CREDIT_BASED_RECONFIGURE_RSP:
+        // 5.4 spec : ertm should be used for bredr
+        if (p_lcb && p_lcb->transport == BT_TRANSPORT_BR_EDR) {
+          L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used");
+          return;
+        }
         if (p + 2 > p_next_cmd) {
           android_errorWriteLog(0x534e4554, "74202041");
           return;
