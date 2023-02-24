@@ -83,7 +83,8 @@ static btgatt_interface_t btgattInterface = {
     &btgattClientInterface,
     &btgattServerInterface,
     nullptr,  // filled in btif_gatt_get_interface
-    nullptr   // filled in btif_gatt_get_interface
+    nullptr,  // filled in btif_gatt_get_interface
+    nullptr   // place holder for distance measurement instance
 };
 
 /*******************************************************************************
