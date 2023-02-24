@@ -114,7 +114,7 @@ class BleAdvertiserInterface {
    * parameters and data, and enabling it. |register_cb| is called when the set
    * is advertising. |timeout_cb| is called when the timeout_s have passed.
    * |reg_id| is the callback id assigned from upper layer */
-  virtual void StartAdvertisingSet(
+  virtual uint8_t StartAdvertisingSet(
       int reg_id, IdTxPowerStatusCallback register_cb,
       AdvertiseParameters params, std::vector<uint8_t> advertise_data,
       std::vector<uint8_t> scan_response_data,
