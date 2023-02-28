@@ -145,6 +145,9 @@ const Uuid UUID_HEARING_AID = Uuid::FromString("FDF0");
 
 #define COD_MASK 0x07FF
 
+/* Focus on Major and minor device class*/
+#define COD_DEVICE_MASK 0x1FFC
+
 #define COD_UNCLASSIFIED ((0x1F) << 8)
 #define COD_HID_KEYBOARD 0x0540
 #define COD_HID_POINTING 0x0580
@@ -614,7 +617,7 @@ static uint32_t get_cod(const RawAddress* remote_bdaddr) {
 }
 
 bool check_cod(const RawAddress* remote_bdaddr, uint32_t cod) {
-  return get_cod(remote_bdaddr) == cod;
+  return (get_cod(remote_bdaddr) & COD_DEVICE_MASK) == cod;
 }
 
 bool check_cod_hid(const RawAddress* remote_bdaddr) {
