@@ -122,7 +122,7 @@
 #include "device/include/device_iot_config.h"
 #include "stack_interface.h"
 #ifdef ADV_AUDIO_FEATURE
-#include "btif_dm_adv_audio.h"
+#include "btif/include/btif_dm_adv_audio.h"
 #include "bta_dm_adv_audio.h"
 #endif
 
@@ -953,6 +953,12 @@ static void btif_dm_cb_create_bond(const RawAddress& bd_addr,
      __func__);
       btif_dm_cancel_discovery();
       pairing_cb.is_adv_audio = 1;
+    } else {
+      if ((addr_type == BLE_ADDR_RANDOM) &&
+          ((device_type & BT_DEVICE_TYPE_BLE) == BT_DEVICE_TYPE_BLE)) {
+        BTIF_TRACE_DEBUG("%s -- Go via LE Transport ", __func__);
+        transport = BT_TRANSPORT_LE;
+      }
     }
 #endif
     BTIF_TRACE_DEBUG("%s bonding through TRANPORT %d ",
@@ -1434,11 +1440,23 @@ static void btif_dm_auth_cmpl_evt(tBTA_DM_AUTH_CMPL* p_auth_cmpl) {
 
 
         if (is_crosskey) {
+          bt_property_t prop;
+
+         BTIF_STORAGE_FILL_PROPERTY(&prop,
+           (bt_property_type_t)BT_PROPERTY_REM_DEV_IDENT_BD_ADDR, sizeof(RawAddress), &bd_addr);
+
+         int ret = btif_storage_set_remote_device_property(&pairing_cb.bd_addr, &prop);
+         ASSERTC(ret == BT_STATUS_SUCCESS, "failed to save BT_PROPERTY_REM_DEV_IDENT_BD_ADDR", ret);
+
+         HAL_CBACK(bt_hal_cbacks, remote_device_properties_cb, BT_STATUS_SUCCESS,
+           &pairing_cb.bd_addr, 1, &prop);
+
           // If bonding occurred due to cross-key pairing, send bonding callback
           // for static address now
-          LOG_INFO(LOG_TAG,
-                   "%s: send bonding state update for static address %s",
-                   __func__, bd_addr.ToString().c_str());
+         LOG_INFO(LOG_TAG,
+                   "%s: send bonding state update for static bd_addr %s private (pairing_cb) %s ",
+                   __func__, bd_addr.ToString().c_str(), pairing_cb.bd_addr.ToString().c_str());
+
           bond_state_changed(BT_STATUS_SUCCESS, bd_addr, BT_BOND_STATE_BONDING);
         }
         bond_state_changed(BT_STATUS_SUCCESS, bd_addr, BT_BOND_STATE_BONDED);
@@ -2237,7 +2255,7 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
 
       HAL_CBACK(bt_hal_cbacks, acl_state_changed_cb, BT_STATUS_SUCCESS,
                 &bd_addr, BT_ACL_STATE_CONNECTED, p_data->link_down.link_type, HCI_SUCCESS,
-                bt_conn_direction_t::BT_CONN_DIRECTION_UNKNOWN);
+                bt_conn_direction_t::BT_CONN_DIRECTION_UNKNOWN, 0);
       break;
 
     case BTA_DM_LINK_DOWN_EVT:
@@ -2296,7 +2314,7 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
       HAL_CBACK(bt_hal_cbacks, acl_state_changed_cb, BT_STATUS_SUCCESS,
                 &bd_addr, BT_ACL_STATE_DISCONNECTED, p_data->link_down.link_type,
                 static_cast<bt_hci_error_code_t>(btm_get_acl_disc_reason_code()),
-                direction);
+                direction, 0);
       break;
 
     case BTA_DM_HW_ERROR_EVT:
@@ -2617,21 +2635,6 @@ static void btif_dm_generic_evt(uint16_t event, char* p_param) {
     case BTIF_DM_CB_BOND_STATE_BONDING: {
       bond_state_changed(BT_STATUS_SUCCESS, *((RawAddress*)p_param),
                          BT_BOND_STATE_BONDING);
-    } break;
-    case BTIF_DM_CB_LE_TX_TEST:
-    case BTIF_DM_CB_LE_RX_TEST: {
-      uint8_t status;
-      STREAM_TO_UINT8(status, p_param);
-      HAL_CBACK(bt_hal_cbacks, le_test_mode_cb,
-                (status == 0) ? BT_STATUS_SUCCESS : BT_STATUS_FAIL, 0);
-    } break;
-    case BTIF_DM_CB_LE_TEST_END: {
-      uint8_t status;
-      uint16_t count = 0;
-      STREAM_TO_UINT8(status, p_param);
-      if (status == 0) STREAM_TO_UINT16(count, p_param);
-      HAL_CBACK(bt_hal_cbacks, le_test_mode_cb,
-                (status == 0) ? BT_STATUS_SUCCESS : BT_STATUS_FAIL, count);
     } break;
     default: {
       BTIF_TRACE_WARNING("%s : Unknown event 0x%x", __func__, event);
@@ -4496,3 +4499,8 @@ void btif_store_adv_audio_pair_info(RawAddress bd_addr) {
       ret);
 }
 #endif
+
+void btif_dm_get_le_services(RawAddress *bd_addr, int transport) {
+  BTIF_TRACE_WARNING("%s %s", __func__, bd_addr->ToString().c_str());
+  bta_dm_gatt_le_services(*bd_addr);
+}

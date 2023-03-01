@@ -1638,6 +1638,7 @@ typedef struct {
 #define HCI_BROADCAST_AUDIO_TX_WITH_EC_3_9(x) ((x)[4] & 0x02)
 #define HCI_BROADCAST_AUDIO_RX_WITH_EC_2_5(x) ((x)[4] & 0x04)
 #define HCI_BROADCAST_AUDIO_RX_WITH_EC_3_9(x) ((x)[4] & 0x08)
+#define HCI_ISO_CIG_PARAMETER_CALCULATOR(x) ((x)[4] & 0x10)
 
 /* Simple Pairing Options */
 #define HCI_REMOTE_PUBLIC_KEY_VALIDATION_SUPPORTED(x) ((x) & 0x01)
