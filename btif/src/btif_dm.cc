@@ -2819,7 +2819,7 @@ bt_status_t btif_dm_start_discovery(void) {
   BTIF_TRACE_EVENT("%s : pairing_cb.state: 0x%x", __FUNCTION__, pairing_cb.state);
 
   /* We should not go for inquiry in BONDING STATE. */
-  if (pairing_cb.state == BT_BOND_STATE_BONDING)
+  if (is_bonding_or_sdp())
       return BT_STATUS_BUSY;
  #ifdef ADV_AUDIO_FEATURE
    if (bta_lea_is_le_pairing()){
