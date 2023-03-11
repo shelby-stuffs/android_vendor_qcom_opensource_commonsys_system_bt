@@ -114,6 +114,8 @@ typedef struct hid_kb_list {
 btif_hh_cb_t btif_hh_cb;
 
 static bthh_callbacks_t* bt_hh_callbacks = NULL;
+static bthh_profile_enable_t bt_hh_enable_type = {.hidp_enabled = true,
+                                                  .hogp_enabled = true};
 
 /* List of HID keyboards for which the NUMLOCK state needs to be
  * turned ON by default. Add devices to this list to apply the
@@ -1780,6 +1782,21 @@ static void cleanup(void) {
 
 }
 
+/*******************************************************************************
+ *
+ * Function         configure_enabled_profiles
+ *
+ * Description      Configure HIDP or HOGP enablement. Require to cleanup and
+ *re-init to take effect.
+ *
+ * Returns          void
+ *
+ ******************************************************************************/
+static void configure_enabled_profiles(bool enable_hidp, bool enable_hogp) {
+  bt_hh_enable_type.hidp_enabled = enable_hidp;
+  bt_hh_enable_type.hogp_enabled = enable_hogp;
+}
+
 static const bthh_interface_t bthhInterface = {
     sizeof(bthhInterface),
     init,
@@ -1796,6 +1813,7 @@ static const bthh_interface_t bthhInterface = {
     set_report,
     send_data,
     cleanup,
+    configure_enabled_profiles,
 };
 
 /*******************************************************************************
