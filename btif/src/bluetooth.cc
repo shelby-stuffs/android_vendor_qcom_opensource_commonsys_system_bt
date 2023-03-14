@@ -323,6 +323,12 @@ static int create_bond(const RawAddress* bd_addr, int transport) {
   return btif_dm_create_bond(bd_addr, transport);
 }
 
+static int create_bond_le(const RawAddress* bd_addr, uint8_t addr_type) {
+  if (!interface_ready()) return BT_STATUS_NOT_READY;
+
+  return BT_STATUS_SUCCESS;
+}
+
 static int create_bond_out_of_band(const RawAddress* bd_addr, int transport,
                                    const bt_oob_data_t* p192_data,
                                    const bt_oob_data_t* p256_data) {
@@ -492,24 +498,6 @@ static const void* get_profile_interface(const char* profile_id) {
   return get_external_profile_interface(profile_id);
 }
 
-int dut_mode_configure(uint8_t enable) {
-  LOG_INFO(LOG_TAG, "%s", __func__);
-
-  /* sanity check */
-  if (interface_ready() == false) return BT_STATUS_NOT_READY;
-
-  return btif_dut_mode_configure(enable);
-}
-
-int dut_mode_send(uint16_t opcode, uint8_t* buf, uint8_t len) {
-  LOG_INFO(LOG_TAG, "%s", __func__);
-
-  /* sanity check */
-  if (interface_ready() == false) return BT_STATUS_NOT_READY;
-
-  return btif_dut_mode_send(opcode, buf, len);
-}
-
 int le_test_mode(uint16_t opcode, uint8_t* buf, uint8_t len) {
   LOG_INFO(LOG_TAG, "%s", __func__);
 
@@ -609,6 +597,33 @@ static int set_event_filter_connection_setup_all_devices() {
   return BT_STATUS_SUCCESS;
 }
 
+static bool interop_match_addr(const char* feature_name,
+                               const RawAddress* addr) {
+  return false;
+}
+
+static bool interop_match_name(const char* feature_name, const char* name) {
+  return false;
+}
+
+static bool interop_match_addr_or_name(const char* feature_name,
+                                       const RawAddress* addr) {
+  return false;
+}
+
+static void interop_database_add_remove_addr(bool do_add,
+                                             const char* feature_name,
+                                             const RawAddress* addr,
+                                             int length) {
+  return;
+}
+
+static void interop_database_add_remove_name(bool do_add,
+                                             const char* feature_name,
+                                             const char* name) {
+  return;
+}
+
 EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     sizeof(bluetoothInterface),
     init,
@@ -626,6 +641,7 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     start_discovery,
     cancel_discovery,
     create_bond,
+    create_bond_le,
     create_bond_out_of_band,
     remove_bond,
     cancel_bond,
@@ -633,8 +649,6 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     pin_reply,
     ssp_reply,
     get_profile_interface,
-    dut_mode_configure,
-    dut_mode_send,
     set_os_callouts,
     read_energy_info,
     dump,
@@ -660,6 +674,11 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     set_event_filter_inquiry_result_all_devices,
     get_wbs_supported,
     metadata_changed,
+    interop_match_addr,
+    interop_match_name,
+    interop_match_addr_or_name,
+    interop_database_add_remove_addr,
+    interop_database_add_remove_name,
 };
 
 void invoke_oob_data_request_cb(tBT_TRANSPORT t, bool valid, Octet16 c,
