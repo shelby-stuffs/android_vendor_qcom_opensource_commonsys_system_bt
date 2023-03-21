@@ -1943,6 +1943,14 @@ static void l2c_csm_open(tL2C_CCB* p_ccb, uint16_t event, void* p_data) {
       break;
 
     case L2CEVT_L2CA_DISCONNECT_REQ: /* Upper wants to disconnect */
+      if (p_ccb->p_lcb->transport == BT_TRANSPORT_BR_EDR &&
+        p_ccb->p_rcb->psm != BT_PSM_SDP &&
+        interop_match_addr_or_name(INTEROP_L2CAP_DISCONNECT_ACL_DIRECTLY,
+        &p_ccb->p_lcb->remote_bd_addr)) {
+        L2CAP_TRACE_ERROR("disconnect acl directly.");
+        btm_sec_disconnect(p_ccb->p_lcb->handle, HCI_ERR_PEER_USER);
+      }
+
       if (p_ccb->p_lcb->transport != BT_TRANSPORT_LE) {
         /* Make sure we are not in sniff mode */
         {
