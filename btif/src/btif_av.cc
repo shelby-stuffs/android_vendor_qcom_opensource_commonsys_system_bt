@@ -156,6 +156,7 @@ extern std::mutex isDevUiReq_mutex_;
 #if (TWS_ENABLED == TRUE)
 #define BTIF_TWS_OFFLOAD_STARTED_SYNC_TOUT (1 * 1000)
 #endif
+#define BTIF_PROCESS_CACHED_SRC_CODEC_TOUT 100
 
 /* Number of BTIF-AV control blocks */
 /* Now supports Two AV connections. */
@@ -250,6 +251,7 @@ typedef struct {
   btav_a2dp_codec_config_t cached_aptx_mode;
   bool cache_aptx_mode;
   struct alarm_t *suspend_rsp_track_timer;
+  struct alarm_t *process_cached_src_codec_timer;
   bool fake_suspend_rsp;
   bool is_retry_reconfig;
   bool suspend_for_call;
@@ -1008,9 +1010,30 @@ static void btif_av_cache_src_codec_config(btif_sm_event_t event, void* p_data, 
                      sizeof(btif_av_codec_config_req_t));
 }
 
-static void btif_av_process_cached_src_codec_config(int index) {
+static void btif_av_process_cached_src_codec_timer_tout(void* data) {
+  int *arg = (int *)data;
+  if (!arg) {
+    BTIF_TRACE_ERROR("%s: index is null, return", __func__);
+    return;
+  }
+  int index = *arg;
   BTIF_TRACE_DEBUG("%s: process previousely stored codec config", __func__);
   btif_update_source_codec(&btif_av_cb[index].reconfig_data);
+  BTIF_TRACE_DEBUG("%s: Exit", __func__);
+}
+
+static void btif_av_process_cached_src_codec_config(int index) {
+  int *arg = NULL;
+  arg = (int *) osi_malloc(sizeof(int));
+  *arg = index;
+  if (alarm_is_scheduled(btif_av_cb[index].process_cached_src_codec_timer)) {
+    alarm_cancel(btif_av_cb[index].process_cached_src_codec_timer);
+    BTIF_TRACE_DEBUG("%s: Deleting previously queued timer if any.", __func__);
+  }
+  BTIF_TRACE_DEBUG("%s: start delay to process cached codec config", __func__);
+  alarm_set(btif_av_cb[index].process_cached_src_codec_timer,
+                     BTIF_PROCESS_CACHED_SRC_CODEC_TOUT,
+                     btif_av_process_cached_src_codec_timer_tout, (void *)arg);
   BTIF_TRACE_DEBUG("%s: Exit", __func__);
 }
 
@@ -1023,8 +1046,21 @@ void btif_av_clear_cached_src_codec_config(const RawAddress& address) {
     BTIF_TRACE_ERROR("%s: invalid index: %d", __func__, index);
     return;
   }
+  if (alarm_is_scheduled(btif_av_cb[index].process_cached_src_codec_timer)) {
+     BTIF_TRACE_DEBUG("%s: clear process_cached_src_codec_timer", __func__);
+     alarm_cancel(btif_av_cb[index].process_cached_src_codec_timer);
+  }
   btif_av_cb[index].reconfig_event = 0;
   memset(&btif_av_cb[index].reconfig_data, 0, sizeof(btif_av_codec_config_req_t));
+}
+
+void btif_av_clear_process_cached_src_codec_timer(int index) {
+   BTIF_TRACE_DEBUG("%s: index: %d", __func__, index);
+   if (index < btif_max_av_clients && index >= 0) {
+     if (btif_av_cb[index].process_cached_src_codec_timer != NULL)
+       alarm_free(btif_av_cb[index].process_cached_src_codec_timer);
+     btif_av_cb[index].process_cached_src_codec_timer = NULL;
+   }
 }
 
 
@@ -4413,6 +4449,9 @@ bt_status_t btif_av_init(int service_id) {
       btif_av_cb[i].tws_offload_started_sync_timer =
                          alarm_new("btif_av.tws_offload_started_sync_timer");
 #endif
+     btif_av_cb[i].process_cached_src_codec_timer =
+                       alarm_new("btif_av.process_cached_src_codec_timer");
+
       memset(&collision_detect[i].bd_addr, 0, sizeof(RawAddress));
       collision_detect[i].conn_retry_count = 1;
     }
@@ -4995,6 +5034,7 @@ static void cleanup(int service_uuid) {
 #if (TWS_ENABLED == TRUE)
     btif_av_clear_tws_offload_started_sync_timer(i);
 #endif
+    btif_av_clear_process_cached_src_codec_timer(i);
     collision_detect[i].conn_retry_count = 1;
     alarm_free(collision_detect[i].av_coll_detected_timer);
     collision_detect[i].av_coll_detected_timer = NULL;

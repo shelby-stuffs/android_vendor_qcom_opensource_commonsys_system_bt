@@ -587,6 +587,7 @@ void btif_av_tws_offload_started_sync_timer_tout(void* data);
 void btif_av_clear_tws_offload_started_sync_timer(int index);
 #endif
 void btif_av_clear_suspend_rsp_track_timer(int index);
+void btif_av_clear_process_cached_src_codec_timer(int index);
 /**
  * Set the dynamic audio buffer size
  *
