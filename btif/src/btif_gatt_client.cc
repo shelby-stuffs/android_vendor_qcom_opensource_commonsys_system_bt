@@ -339,8 +339,8 @@ bt_status_t btif_gattc_unregister_app(int client_if) {
   return do_in_jni_thread(Bind(&btif_gattc_unregister_app_impl, client_if));
 }
 
-void btif_gattc_open_impl(int client_if, RawAddress address, bool is_direct,
-                          int transport_p, bool opportunistic,
+void btif_gattc_open_impl(int client_if, RawAddress address, tBLE_ADDR_TYPE type,
+                          bool is_direct, int transport_p, bool opportunistic,
                           int initiating_phys) {
   // Ensure device is in inquiry database
   int addr_type = 0;
@@ -399,12 +399,12 @@ void btif_gattc_open_impl(int client_if, RawAddress address, bool is_direct,
                  initiating_phys);
 }
 
-bt_status_t btif_gattc_open(int client_if, const RawAddress& bd_addr,
+bt_status_t btif_gattc_open(int client_if, const RawAddress& bd_addr, tBLE_ADDR_TYPE addr_type,
                             bool is_direct, int transport, bool opportunistic,
                             int initiating_phys) {
   CHECK_BTGATT_INIT();
   // Closure will own this value and free it.
-  return do_in_jni_thread(Bind(&btif_gattc_open_impl, client_if, bd_addr,
+  return do_in_jni_thread(Bind(&btif_gattc_open_impl, client_if, bd_addr, addr_type,
                                is_direct, transport, opportunistic,
                                initiating_phys));
 }
