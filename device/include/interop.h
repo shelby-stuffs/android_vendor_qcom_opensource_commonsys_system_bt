@@ -321,6 +321,10 @@ typedef enum {
   //Add remote device into INTEROP_A2DP_DELAY_DISCONNECT blacklist
   INTEROP_A2DP_DELAY_DISCONNECT,
 
+  // some remotes need empty response for CLCC immediately after VOIP call is ended
+  // and CS MT call is received
+  INTEROP_HFP_SEND_OK_FOR_CLCC_AFTER_VOIP_CALL_END,
+
   END_OF_INTEROP_LIST
 } interop_feature_t;
 
