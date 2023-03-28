@@ -795,6 +795,9 @@ static void btif_hh_upstreams_evt(uint16_t event, char* p_param) {
       break;
 
     case BTA_HH_DISABLE_EVT:
+      if (btif_hh_cb.status == BTIF_HH_DISABLING) {
+        bt_hh_callbacks = NULL;
+      }
       btif_hh_cb.status = BTIF_HH_DISABLED;
       if (btif_hh_cb.service_dereg_active) {
         BTIF_TRACE_DEBUG("BTA_HH_DISABLE_EVT: enabling HID Device service");
@@ -1754,7 +1757,8 @@ static void cleanup(void) {
   BTIF_TRACE_EVENT("%s", __func__);
   btif_hh_device_t* p_dev;
   int i;
-  if (btif_hh_cb.status == BTIF_HH_DISABLED) {
+  if (btif_hh_cb.status == BTIF_HH_DISABLED ||
+      btif_hh_cb.status == BTIF_HH_DISABLING) {
     BTIF_TRACE_WARNING("%s: HH disabling or disabled already, status = %d",
                        __func__, btif_hh_cb.status);
     return;
@@ -1765,7 +1769,6 @@ static void cleanup(void) {
      */
     btif_hh_cb.service_dereg_active = FALSE;
     btif_disable_service(BTA_HID_SERVICE_ID);
-    bt_hh_callbacks = NULL;
   }
   for (i = 0; i < BTIF_HH_MAX_HID; i++) {
     p_dev = &btif_hh_cb.devices[i];
