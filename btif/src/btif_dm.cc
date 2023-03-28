@@ -53,6 +53,13 @@
  *  SPDX-License-Identifier: BSD-3-Clause-Clear
  *
  ******************************************************************************/
+/*******************************************************************************
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
+ *******************************************************************************/
 
 /*******************************************************************************
  *
@@ -3766,15 +3773,16 @@ void btif_dm_proc_loc_oob(tBT_TRANSPORT transport, bool is_valid,
  *
  ******************************************************************************/
 bool btif_dm_get_smp_config(tBTE_APPL_CFG* p_cfg) {
-  if (!stack_config_get_interface()->get_pts_smp_options()) {
+  const std::string* smp_opt_str = stack_config_get_interface()->get_pts_smp_options();
+  if (!smp_opt_str) {
     BTIF_TRACE_DEBUG("%s: SMP options not found in configuration", __func__);
     return false;
   }
 
   char conf[64];
-  const char* recv = stack_config_get_interface()->get_pts_smp_options();
   char* pch;
   char* endptr;
+  const char* recv = smp_opt_str->c_str();
 
   strncpy(conf, recv, 64);
   conf[63] = 0;  // null terminate

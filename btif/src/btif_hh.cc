@@ -15,6 +15,13 @@
  *  limitations under the License.
  *
  ******************************************************************************/
+/*******************************************************************************
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
+ *******************************************************************************/
 
 /*******************************************************************************
  *
@@ -475,7 +482,7 @@ void btif_hh_remove_device(RawAddress bd_addr) {
     p_added_dev = &btif_hh_cb.added_devices[i];
     if (p_added_dev->bd_addr == bd_addr) {
       BTA_HhRemoveDev(p_added_dev->dev_handle);
-      btif_storage_remove_hid_info(&(p_added_dev->bd_addr));
+      btif_storage_remove_hid_info(p_added_dev->bd_addr);
       memset(&(p_added_dev->bd_addr), 0, 6);
       p_added_dev->dev_handle = BTA_HH_INVALID_HANDLE;
       break;
