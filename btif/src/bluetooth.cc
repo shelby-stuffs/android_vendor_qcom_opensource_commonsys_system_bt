@@ -426,6 +426,14 @@ static void dump(int fd, const char** arguments) {
 #endif
 }
 
+static int get_remote_pbap_pce_version(const RawAddress* bd_addr) {
+  return 0;
+}
+
+static bool pbap_pse_dynamic_version_upgrade_is_enabled() {
+  return false;
+}
+
 static const void* get_profile_interface(const char* profile_id) {
   LOG_INFO(LOG_TAG, "%s: id = %s", __func__, profile_id);
 
@@ -679,6 +687,8 @@ EXPORT_SYMBOL bt_interface_t bluetoothInterface = {
     interop_match_addr_or_name,
     interop_database_add_remove_addr,
     interop_database_add_remove_name,
+    get_remote_pbap_pce_version,
+    pbap_pse_dynamic_version_upgrade_is_enabled,
 };
 
 void invoke_oob_data_request_cb(tBT_TRANSPORT t, bool valid, Octet16 c,

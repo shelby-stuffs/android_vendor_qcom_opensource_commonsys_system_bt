@@ -14,6 +14,9 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
  ******************************************************************************/
 
 /******************************************************************************
@@ -2827,8 +2830,13 @@ static void btm_sec_bond_cancel_complete(void) {
  * Returns          void
  *
  ******************************************************************************/
-void btm_create_conn_cancel_complete(uint8_t* p) {
+void btm_create_conn_cancel_complete(uint8_t* p, uint16_t evt_len) {
   uint8_t status;
+
+  if (evt_len < 1 + BD_ADDR_LEN) {
+     BTM_TRACE_ERROR("%s malformatted event packet, too short", __func__);
+     return;
+  }
 
   STREAM_TO_UINT8(status, p);
   BTM_TRACE_EVENT("btm_create_conn_cancel_complete(): in State: %s  status:%d",
@@ -3903,13 +3911,22 @@ void btm_rem_oob_req(uint8_t* p) {
  * Returns          void
  *
  ******************************************************************************/
-void btm_read_local_oob_complete(uint8_t* p) {
+void btm_read_local_oob_complete(uint8_t* p, uint16_t evt_len) {
   tBTM_SP_LOC_OOB evt_data;
-  uint8_t status = *p++;
+  uint8_t status;
+  if (evt_len < 1) {
+    goto err_out;
+  }
 
+  STREAM_TO_UINT8(status, p);
   BTM_TRACE_EVENT("btm_read_local_oob_complete:%d", status);
   if (status == HCI_SUCCESS) {
     evt_data.status = BTM_SUCCESS;
+
+    if (evt_len < 1 + 32) {
+      goto err_out;
+    }
+
     STREAM_TO_ARRAY16(evt_data.c.data(), p);
     STREAM_TO_ARRAY16(evt_data.r.data(), p);
   } else
@@ -3920,6 +3937,11 @@ void btm_read_local_oob_complete(uint8_t* p) {
     btm_sp_evt_data.loc_oob = evt_data;
     (*btm_cb.api.p_sp_callback)(BTM_SP_LOC_OOB_EVT, &btm_sp_evt_data);
   }
+
+  return;
+
+err_out:
+  BTM_TRACE_ERROR("%s malformatted event packet, too short", __func__);
 }
 
 /*******************************************************************************
@@ -5398,7 +5420,12 @@ extern tBTM_STATUS btm_sec_execute_procedure(tBTM_SEC_DEV_REC* p_dev_rec) {
   tBTM_INQUIRY_VAR_ST *p_inq = &btm_cb.btm_inq_vars;
 
   /* There is a chance that we are getting name.  Wait until done. */
-  if (p_dev_rec->sec_state != 0) return (BTM_CMD_STARTED);
+  if ((p_dev_rec->sec_state != BTM_SEC_STATE_IDLE) &&
+      (p_dev_rec->sec_state != BTM_SEC_STATE_DISCONNECTING_BLE)) {
+    LOG_DEBUG(LOG_TAG,
+        "Security state is not idle indicating RNR or security is in progress");
+    return (BTM_CMD_STARTED);
+  }
 
   /* If any security is required, get the name first */
   if (!(p_dev_rec->sec_flags & BTM_SEC_NAME_KNOWN) &&

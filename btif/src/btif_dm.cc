@@ -180,6 +180,7 @@ typedef struct {
   bt_bond_state_t state;
   RawAddress static_bdaddr;
   RawAddress bd_addr;
+  RawAddress lea_bd_addr;
   tBTM_BOND_TYPE bond_type;
   uint8_t pin_code_len;
   uint8_t is_ssp;
@@ -912,7 +913,7 @@ static void btif_dm_cb_create_bond(const RawAddress& bd_addr,
   bond_state_changed(BT_STATUS_SUCCESS, bd_addr, BT_BOND_STATE_BONDING);
 
   int device_type;
-  int addr_type;
+  int addr_type = BLE_ADDR_PUBLIC;
   std::string addrstr = bd_addr.ToString();
   const char* bdstr = addrstr.c_str();
   if (transport == BT_TRANSPORT_LE) {
@@ -953,6 +954,7 @@ static void btif_dm_cb_create_bond(const RawAddress& bd_addr,
      __func__);
       btif_dm_cancel_discovery();
       pairing_cb.is_adv_audio = 1;
+      pairing_cb.lea_bd_addr = bd_addr;
     } else {
       if ((addr_type == BLE_ADDR_RANDOM) &&
           ((device_type & BT_DEVICE_TYPE_BLE) == BT_DEVICE_TYPE_BLE)) {
@@ -1442,22 +1444,34 @@ static void btif_dm_auth_cmpl_evt(tBTA_DM_AUTH_CMPL* p_auth_cmpl) {
         if (is_crosskey) {
           bt_property_t prop;
 
-         BTIF_STORAGE_FILL_PROPERTY(&prop,
-           (bt_property_type_t)BT_PROPERTY_REM_DEV_IDENT_BD_ADDR, sizeof(RawAddress), &bd_addr);
+          BTIF_STORAGE_FILL_PROPERTY(&prop,
+              (bt_property_type_t)BT_PROPERTY_REM_DEV_IDENT_BD_ADDR, sizeof(RawAddress), &bd_addr);
 
-         int ret = btif_storage_set_remote_device_property(&pairing_cb.bd_addr, &prop);
-         ASSERTC(ret == BT_STATUS_SUCCESS, "failed to save BT_PROPERTY_REM_DEV_IDENT_BD_ADDR", ret);
+          int ret = btif_storage_set_remote_device_property(&pairing_cb.bd_addr, &prop);
+          ASSERTC(ret == BT_STATUS_SUCCESS, "failed to save BT_PROPERTY_REM_DEV_IDENT_BD_ADDR", ret);
 
-         HAL_CBACK(bt_hal_cbacks, remote_device_properties_cb, BT_STATUS_SUCCESS,
-           &pairing_cb.bd_addr, 1, &prop);
+          HAL_CBACK(bt_hal_cbacks, remote_device_properties_cb, BT_STATUS_SUCCESS,
+              &pairing_cb.bd_addr, 1, &prop);
 
           // If bonding occurred due to cross-key pairing, send bonding callback
           // for static address now
-         LOG_INFO(LOG_TAG,
-                   "%s: send bonding state update for static bd_addr %s private (pairing_cb) %s ",
-                   __func__, bd_addr.ToString().c_str(), pairing_cb.bd_addr.ToString().c_str());
+          LOG_INFO(LOG_TAG,
+              "%s: send bonding state update for static bd_addr %s private (pairing_cb) %s ",
+              __func__, bd_addr.ToString().c_str(), pairing_cb.bd_addr.ToString().c_str());
 
           bond_state_changed(BT_STATUS_SUCCESS, bd_addr, BT_BOND_STATE_BONDING);
+
+          if (bd_addr != pairing_cb.bd_addr) {
+            BTIF_STORAGE_FILL_PROPERTY(&prop,
+                (bt_property_type_t)BT_PROPERTY_REM_DEV_IDENT_BD_ADDR,
+                sizeof(RawAddress), &pairing_cb.bd_addr);
+
+            int ret =
+              btif_storage_set_remote_device_property(&bd_addr,
+                                                      &prop);
+            ASSERTC(ret == BT_STATUS_SUCCESS,
+                    "failed to save BT_PROPERTY_REM_DEV_IDENT_BD_ADDR", ret);
+          }
         }
         bond_state_changed(BT_STATUS_SUCCESS, bd_addr, BT_BOND_STATE_BONDED);
 
@@ -2819,7 +2833,7 @@ bt_status_t btif_dm_start_discovery(void) {
   BTIF_TRACE_EVENT("%s : pairing_cb.state: 0x%x", __FUNCTION__, pairing_cb.state);
 
   /* We should not go for inquiry in BONDING STATE. */
-  if (pairing_cb.state == BT_BOND_STATE_BONDING)
+  if (is_bonding_or_sdp())
       return BT_STATUS_BUSY;
  #ifdef ADV_AUDIO_FEATURE
    if (bta_lea_is_le_pairing()){
@@ -4430,11 +4444,13 @@ uint16_t btif_dm_get_le_links() {
  *
  ******************************************************************************/
 void btif_get_pairing_cb_info(bt_bond_state_t* state, uint8_t* sdp_attempts,
-                             RawAddress* bd_addr, RawAddress* static_bdaddr) {
+                             RawAddress* bd_addr, RawAddress* static_bdaddr,
+                             RawAddress* lea_bd_addr) {
   *state = pairing_cb.state;
   *bd_addr = pairing_cb.bd_addr;
   *sdp_attempts = pairing_cb.sdp_attempts;
   *static_bdaddr= pairing_cb.static_bdaddr;
+  *lea_bd_addr = pairing_cb.lea_bd_addr;
 }
 
 /*******************************************************************************

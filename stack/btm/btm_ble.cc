@@ -47,6 +47,7 @@
 #include "l2c_int.h"
 #include "osi/include/log.h"
 #include "osi/include/osi.h"
+#include "osi/include/properties.h"
 #include "stack/crypto_toolbox/crypto_toolbox.h"
 #include "btif/include/btif_storage.h"
 #include "stack_config.h"
@@ -1286,7 +1287,7 @@ tL2CAP_LE_RESULT_CODE btm_ble_start_sec_check(const RawAddress& bd_addr,
  * Returns          void
  *
  ******************************************************************************/
-void btm_ble_rand_enc_complete(uint8_t* p, uint16_t op_code,
+void btm_ble_rand_enc_complete(uint8_t* p, uint16_t evt_len, uint16_t op_code,
                                tBTM_RAND_ENC_CB* p_enc_cplt_cback) {
   tBTM_RAND_ENC params;
   uint8_t* p_dest = params.param_buf;
@@ -1297,6 +1298,11 @@ void btm_ble_rand_enc_complete(uint8_t* p, uint16_t op_code,
 
   /* If there was a callback address for vcs complete, call it */
   if (p_enc_cplt_cback && p) {
+
+    if (evt_len < 1) {
+      goto err_out;
+    }
+
     /* Pass paramters to the callback function */
     STREAM_TO_UINT8(params.status, p); /* command status */
 
@@ -1307,6 +1313,9 @@ void btm_ble_rand_enc_complete(uint8_t* p, uint16_t op_code,
         params.param_len = BT_OCTET8_LEN;
       else
         params.param_len = OCTET16_LEN;
+      if (evt_len < 1 + params.param_len) {
+        goto err_out;
+      }
 
       /* Fetch return info from HCI event message */
       memcpy(p_dest, p, params.param_len);
@@ -1314,6 +1323,11 @@ void btm_ble_rand_enc_complete(uint8_t* p, uint16_t op_code,
     if (p_enc_cplt_cback) /* Call the Encryption complete callback function */
       (*p_enc_cplt_cback)(&params);
   }
+
+  return;
+
+err_out:
+  BTM_TRACE_ERROR("%s malformatted event packet, too short", __func__);
 }
 
 /*******************************************************************************
@@ -2534,6 +2548,107 @@ bool BTM_BleIsQHSPhySupported(const RawAddress& bda) {
 }
 
 /*******************************************************************************
+ *
+ * Function         BTM_BleIsCisParamUpdateRemoteControllerSupported
+ *
+ * Description      This function is called to determine if CIS_Parameter_Update_Controller
+ *                  feature is supported on remote device.
+ *
+ * Parameter        bda: BD address of the remote device
+ *
+ * Returns          bool true if supported, false otherwise
+ *
+ ******************************************************************************/
+bool BTM_BleIsCisParamUpdateRemoteControllerSupported(const RawAddress& bda) {
+  tACL_CONN* p = btm_bda_to_acl(bda, BT_TRANSPORT_LE);
+  if (p == NULL) {
+    BTM_TRACE_ERROR("%s: invalid bda %s", __func__,
+                     bda.ToString().c_str());
+    return false;
+  }
+
+  bool supported = false;
+  bool ret;
+  BD_FEATURES features;
+
+  ret = BTM_GetRemoteQLLFeatures(p->hci_handle, (uint8_t *)&features);
+  if (ret && HCI_QBCE_QLL_CIS_PARAMETER_UPDATE_CONTROLLER(features))
+    supported = true;
+
+  BTM_TRACE_DEBUG("%s: device=%s, supported=%d",
+      __func__, bda.ToString().c_str(), supported);
+
+  return supported;
+}
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleIsCisParamUpdateLocalControllerSupported
+ *
+ * Description      This function is called to determine if CIS_Parameter_Update_Controller
+ *                  feature is supported on local device.
+ *
+ * Returns          bool true if supported, false otherwise
+ *
+ ******************************************************************************/
+bool BTM_BleIsCisParamUpdateLocalControllerSupported() {
+  bool supported = false;
+
+  const bt_device_qll_local_supported_features_t *qll_feature_list =
+      controller_get_interface()->get_qll_features();
+  if (HCI_QBCE_QLL_CIS_PARAMETER_UPDATE_CONTROLLER(qll_feature_list->as_array))
+    supported = true;
+
+  BTM_TRACE_DEBUG("%s: supported=%d", __func__, supported);
+
+  return supported;
+}
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleIsCisParamUpdateLocalHostSupported
+ *
+ * Description      This function is called to determine if CIS_Parameter_Update_Host
+ *                  feature is supported by local host.
+ *
+ * Returns          bool true if supported, false otherwise
+ *
+ ******************************************************************************/
+bool BTM_BleIsCisParamUpdateLocalHostSupported() {
+  bool supported = false;
+
+  char value[PROPERTY_VALUE_MAX] = "true";
+  property_get("persist.vendor.service.bt.cis_param_update_enabled", value, "true");
+  if (!strncmp("true", value, 4))
+    supported = true;
+
+  BTM_TRACE_DEBUG("%s: supported=%d", __func__, supported);
+
+  return supported;
+}
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleIsCisParamUpdateSupported
+ *
+ * Description      This function is called to determine if CIS_Parameter_Update
+ *                  feature is supported by local controller & local host & remote
+ *                  controller.
+ *
+ * Returns          bool true if supported, false otherwise
+ *
+ ******************************************************************************/
+bool BTM_BleIsCisParamUpdateSupported(const RawAddress& bda) {
+  bool supported = BTM_BleIsCisParamUpdateLocalControllerSupported() &&
+      BTM_BleIsCisParamUpdateLocalHostSupported() &&
+      BTM_BleIsCisParamUpdateRemoteControllerSupported(bda);
+
+  BTM_TRACE_DEBUG("%s: supported=%d", __func__, supported);
+
+  return supported;
+}
+
+/*******************************************************************************
  *  Utility functions for LE device IR/ER generation
  ******************************************************************************/
 /** This function is to notify application new keys have been generated. */
@@ -2787,6 +2902,25 @@ void btm_ble_set_cig_param_cmd_cmpl(uint8_t *param, uint16_t param_len) {
   osi_free(ret_param.conn_handle);
 }
 
+void btm_ble_add_cig_config_cmd_cmpl(
+    uint8_t cig_id, uint8_t config_id, uint8_t *param, uint16_t param_len) {
+  tBTM_BLE_ADD_CIG_CONFIG_RET_PARAM ret_param = {};
+  BTM_TRACE_API("%s: cig_id=%d, config_id=%d, param_len = %d", __func__, cig_id, config_id, param_len);
+
+  if (param_len <= 0) {
+    BTM_TRACE_WARNING("%s Insufficient return parameters.", __func__);
+    return;
+  }
+
+  STREAM_TO_UINT8(ret_param.status, param);
+  ret_param.cig_id = cig_id;
+  ret_param.config_id = config_id;
+
+  if (hci_cmd_cmpl.add_cig_config_cb) {
+    (*hci_cmd_cmpl.add_cig_config_cb) (&ret_param);
+  }
+}
+
 void btm_ble_setup_iso_datapath_cmd_cmpl(uint8_t *param, uint16_t param_len) {
   uint8_t status;
   uint16_t conn_handle = 0;
@@ -2934,7 +3068,7 @@ void btm_ble_cis_established_evt(uint8_t *param, uint16_t param_len) {
   std::map<uint16_t, tBTM_BLE_PENDING_CIS_CONN>::iterator it
       = pending_cis_map.find(ret_param.connection_handle);
   if (it == pending_cis_map.end()) {
-    BTM_TRACE_ERROR("%s: CIS for connection handle (%x) is not pending",
+    BTM_TRACE_API("%s: CIS for connection handle (%x) is not pending",
         __func__, ret_param.connection_handle);
     return;
   }
@@ -3411,6 +3545,33 @@ uint8_t BTM_BleSetCigParam(tBTM_BLE_ISO_SET_CIG_CMD_PARAM* p_data) {
   return HCI_SUCCESS;
 }
 
+uint8_t BTM_BleAddCigConfig(tBTM_BLE_ISO_ADD_CIG_CONFIG_CMD_PARAM* p_data) {
+  BTM_TRACE_API("%s", __func__);
+
+  if (!controller_get_interface()->is_host_iso_channel_supported()
+        && !controller_get_interface()->is_cis_master_role_supported()
+        && !BTM_BleIsCisParamUpdateLocalControllerSupported()) {
+    BTM_TRACE_ERROR("%s: Unsupported feature. Return.", __func__);
+    return HCI_ERR_UNSUPPORTED_VALUE;
+  }
+
+  hci_cmd_cmpl.add_cig_config_cb = p_data->p_cb;
+  btsnd_hcic_ble_add_cig_config(p_data->cig_id,
+                               p_data->config_id,
+                               p_data->mode_id,
+                               p_data->sdu_int_m_to_s,
+                               p_data->sdu_int_s_to_m,
+                               p_data->slave_clock_accuracy,
+                               p_data->packing,
+                               p_data->framing,
+                               p_data->max_transport_latency_m_to_s,
+                               p_data->max_transport_latency_s_to_m,
+                               p_data->cis_count,
+                               p_data->cis_config,
+                               base::Bind(&btm_ble_add_cig_config_cmd_cmpl, p_data->cig_id, p_data->config_id));
+  return HCI_SUCCESS;
+}
+
 uint8_t BTM_BleCreateCis(tBTM_BLE_ISO_CREATE_CIS_CMD_PARAM* p_data,
                          tBTM_BLE_CIS_DISCONNECTED_CB* p_cb) {
   BTM_TRACE_API("%s", __func__);
@@ -3795,3 +3956,28 @@ void btm_ble_cis_disconnected(uint8_t status, uint16_t cis_handle, uint8_t reaso
     (*hci_cmd_cmpl.cis_disconnected_cb)(status, cis_handle, reason);
   }
 }
+
+void btm_ble_qle_cis_configuration_state_event(const uint8_t *p) {
+  uint8_t cig_id, cis_id, config_id;
+  uint8_t status;
+
+  STREAM_TO_UINT8(cig_id, p);
+  STREAM_TO_UINT8(cis_id, p);
+  STREAM_TO_UINT8(config_id, p);
+  STREAM_TO_UINT8(status, p);
+
+  BTM_TRACE_DEBUG("%s: cig_id=%d, cis_id=%d, config_id=%d, status=%d",
+      __func__, cig_id, cis_id, config_id, status);
+}
+
+void btm_ble_qle_cis_updated_event(const uint8_t *p) {
+  uint16_t cis_handle;
+  uint8_t config_id;
+
+  STREAM_TO_UINT16(cis_handle, p);
+  STREAM_TO_UINT8(config_id, p);
+
+  BTM_TRACE_DEBUG("%s: cis_handle=%d, config_id=%d",
+      __func__, cis_handle, config_id);
+}
+

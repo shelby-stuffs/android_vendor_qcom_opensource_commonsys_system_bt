@@ -895,6 +895,8 @@ extern bool BTM_GetRemoteDeviceName(const RawAddress& bd_addr, BD_NAME bdname);
  ******************************************************************************/
 extern uint8_t BTM_BleSetCigParam(tBTM_BLE_ISO_SET_CIG_CMD_PARAM* p_data);
 
+extern uint8_t BTM_BleAddCigConfig(tBTM_BLE_ISO_ADD_CIG_CONFIG_CMD_PARAM* p_data);
+
 /*******************************************************************************
  *
  * Function         BTM_BleCreateCis
@@ -1316,6 +1318,8 @@ extern void btm_ble_peer_sca_cmpl_evt(uint8_t *param, uint16_t param_len);
 extern void btm_ble_path_loss_threshold_evt(uint8_t *param, uint16_t param_len);
 extern void btm_ble_transmit_power_reporting_event(uint8_t *param, uint16_t param_len);
 extern void btm_ble_cis_disconnected(uint8_t status, uint16_t cis_handle, uint8_t reason);
+extern void btm_ble_qle_cis_configuration_state_event(const uint8_t *p);
+extern void btm_ble_qle_cis_updated_event(const uint8_t *p);
 extern bool btm_ble_is_cis_handle(uint16_t cis_handle);
 using StartSyncCb =
                base::Callback<void(uint8_t /*status*/, uint16_t /*sync_handle*/,
@@ -1442,5 +1446,56 @@ void BTM_BlePeriodicSyncTxParameters(RawAddress addr, uint8_t mode,
  ******************************************************************************/
 extern void BTM_BleEnableCsipOpportunisticScan(bool is_enabled,
     tBTM_CSIP_OPPORTUNISTIC_SCAN_CB *c_back);
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleIsCisParamUpdateRemoteControllerSupported
+ *
+ * Description      This function is called to determine if CIS_Parameter_Update_Controller
+ *                  feature is supported on remote device.
+ *
+ * Parameter        bda: BD address of the remote device
+ *
+ * Returns          bool true if supported, false otherwise
+ *
+ ******************************************************************************/
+bool BTM_BleIsCisParamUpdateRemoteControllerSupported(const RawAddress& bda);
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleIsCisParamUpdateLocalControllerSupported
+ *
+ * Description      This function is called to determine if CIS_Parameter_Update_Controller
+ *                  feature is supported on local device.
+ *
+ * Returns          bool true if supported, false otherwise
+ *
+ ******************************************************************************/
+bool BTM_BleIsCisParamUpdateLocalControllerSupported();
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleIsCisParamUpdateLocalHostSupported
+ *
+ * Description      This function is called to determine if CIS_Parameter_Update_Host
+ *                  feature is supported by local host.
+ *
+ * Returns          bool true if supported, false otherwise
+ *
+ ******************************************************************************/
+bool BTM_BleIsCisParamUpdateLocalHostSupported();
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleIsCisParamUpdateSupported
+ *
+ * Description      This function is called to determine if CIS_Parameter_Update
+ *                  feature is supported by local controller & local host & remote
+ *                  controller.
+ *
+ * Returns          bool true if supported, false otherwise
+ *
+ ******************************************************************************/
+bool BTM_BleIsCisParamUpdateSupported(const RawAddress& bda);
 
 #endif

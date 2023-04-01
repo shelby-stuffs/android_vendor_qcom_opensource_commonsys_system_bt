@@ -897,6 +897,52 @@ void btsnd_hcic_ble_set_cig_param(uint8_t cig_id,
                             param_len, std::move(cb));
 }
 
+void btsnd_hcic_ble_add_cig_config(uint8_t cig_id,
+                                  uint8_t config_id,
+                                  uint8_t mode_id,
+                                  const SDU_INTERVAL sdu_int_m_to_s,
+                                  const SDU_INTERVAL sdu_int_s_to_m,
+                                  uint8_t slave_clock_accuracy,
+                                  uint8_t packing,
+                                  uint8_t framing,
+                                  uint16_t max_transport_latency_m_to_s,
+                                  uint16_t max_transport_latency_s_to_m,
+                                  uint8_t cis_count,
+                                  std::vector<tBTM_BLE_CIS_CONFIG> cis_config,
+                                  base::Callback<void(uint8_t*, uint16_t)> cb) {
+
+  uint16_t param_len = HCI_PARAM_SIZE_ADD_CIG_CONFIG_FIXED
+      + (cis_count * sizeof(uint16_t) * 2)   /* size of arrays which has 2 octet size elements*/
+      + (cis_count * sizeof(uint8_t) * 5);   /* size of arrays which has 1 octet size elements*/
+  uint8_t *param = (uint8_t *)osi_malloc(param_len);
+  uint8_t *p = param;
+
+  UINT8_TO_STREAM(p, QBCE_QLE_ADD_CIG_CONFIGURATION);
+  UINT8_TO_STREAM(p, cig_id);
+  UINT8_TO_STREAM(p, config_id);
+  UINT8_TO_STREAM(p, mode_id);
+  ARRAY_TO_STREAM(p, sdu_int_m_to_s, SDU_INTERVAL_LEN);
+  ARRAY_TO_STREAM(p, sdu_int_s_to_m, SDU_INTERVAL_LEN);
+  UINT8_TO_STREAM(p, slave_clock_accuracy);
+  UINT8_TO_STREAM(p, packing);
+  UINT8_TO_STREAM(p, framing);
+  UINT16_TO_STREAM(p, max_transport_latency_m_to_s);
+  UINT16_TO_STREAM(p, max_transport_latency_s_to_m);
+  UINT8_TO_STREAM(p, cis_count);
+
+  for (int i = 0; i < cis_count; i++) {
+    UINT8_TO_STREAM(p, cis_config[i].cis_id);
+    UINT16_TO_STREAM(p, cis_config[i].max_sdu_m_to_s);
+    UINT16_TO_STREAM(p, cis_config[i].max_sdu_s_to_m);
+    UINT8_TO_STREAM(p, cis_config[i].phy_m_to_s);
+    UINT8_TO_STREAM(p, cis_config[i].phy_s_to_m);
+    UINT8_TO_STREAM(p, cis_config[i].rtn_m_to_s);
+    UINT8_TO_STREAM(p, cis_config[i].rtn_s_to_m);
+  }
+
+  btu_hcif_send_cmd_with_cb(FROM_HERE, HCI_VS_QBCE_OCF, param,
+                            param_len, std::move(cb));
+}
 void btsnd_hcic_ble_create_cis(uint8_t cis_count,
                         std::vector<tBTM_BLE_CHANNEL_MAP> link_conn_handles,
                         base::Callback<void(uint8_t*, uint16_t)> cb) {

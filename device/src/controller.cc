@@ -116,6 +116,8 @@ const uint8_t SCO_HOST_BUFFER_SIZE = 0xff;
 #define QHS_LE_MASK 0x02
 #define QHS_LE_ISO_MASK 0x04
 
+#define QBCE_QLL_CIS_PARAMETER_UPDATE_HOST_BIT 60
+
 const bt_event_mask_t QBCE_QLM_AND_QLL_EVENT_MASK = {
   {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x4A}};
 
@@ -274,7 +276,7 @@ bool is_soc_lpa_enh_pwr_enabled() {
 static future_t* start_up(void) {
   BT_HDR* response;
   uint8_t adv_audio_support_mask = 0;
-  char adv_audio_property[2] = {};
+  char adv_audio_property[PROPERTY_VALUE_MAX] = {0};
 
   osi_property_get("persist.vendor.service.bt.adv_audio_mask", adv_audio_property, "0");
   adv_audio_support_mask = (uint8_t)atoi(adv_audio_property);
@@ -826,6 +828,13 @@ static future_t* start_up(void) {
   if (HCI_QBCE_QLE_HCI_SUPPORTED(soc_add_on_features.as_array)) {
     response = AWAIT_COMMAND(packet_factory->make_qbce_read_qll_local_supported_features());
     packet_parser->parse_qll_read_local_supported_features_response(response, &qll_features);
+  }
+
+  if (HCI_QBCE_QLL_CIS_PARAMETER_UPDATE_CONTROLLER(qll_features.as_array) &&
+      BTM_BleIsCisParamUpdateLocalHostSupported()) {
+    response = AWAIT_COMMAND(
+        packet_factory->make_qbce_qle_set_host_feature(QBCE_QLL_CIS_PARAMETER_UPDATE_HOST_BIT, 1));
+    packet_parser->parse_generic_command_complete(response);
   }
 
   if (!HCI_READ_ENCR_KEY_SIZE_SUPPORTED(supported_commands)) {

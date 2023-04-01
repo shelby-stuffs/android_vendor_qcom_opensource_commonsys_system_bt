@@ -332,31 +332,36 @@ void bta_gattc_process_api_open(tBTA_GATTC_DATA* p_msg) {
 #ifdef ADV_AUDIO_FEATURE
   RawAddress bd_addr = p_msg->api_conn.remote_bda;
   if (is_remote_support_adv_audio(bd_addr)) {
-    RawAddress map_addr = btif_get_map_address(bd_addr);
-    if (map_addr != RawAddress::kEmpty) {
-      //Checking whether ACL connection is UP or not?
-      LOG(INFO) << __func__ << " Valid Mapaddr " <<map_addr;
-      tACL_CONN* p_acl = btm_bda_to_acl(map_addr, BT_TRANSPORT_LE);
-      if (p_acl != NULL) {
-        tBTA_GATTC_CLCB* p_clcb =
-          bta_gattc_cl_get_regcb_by_bdaddr(map_addr, BT_TRANSPORT_LE);
-        if (p_clcb != NULL) {
-          dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
-          p_msg->api_conn.remote_bda = map_addr;
-        }
-      } else {
-        tBT_DEVICE_TYPE dev_type;
-        tBLE_ADDR_TYPE addr_type;
+    tACL_CONN* p_acl_le = btm_bda_to_acl(bd_addr, BT_TRANSPORT_LE);
+    if (p_acl_le == NULL) {
+      RawAddress map_addr = btif_get_map_address(bd_addr);
+      if (map_addr != RawAddress::kEmpty) {
+        //Checking whether ACL connection is UP or not?
+        LOG(INFO) << __func__ << " Valid Mapaddr " <<map_addr;
+        tACL_CONN* p_acl = btm_bda_to_acl(map_addr, BT_TRANSPORT_LE);
+        if (p_acl != NULL) {
+          tBTA_GATTC_CLCB* p_clcb =
+            bta_gattc_cl_get_regcb_by_bdaddr(map_addr, BT_TRANSPORT_LE);
+          if (p_clcb != NULL) {
+            dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
+            p_msg->api_conn.remote_bda = map_addr;
+          }
+        } else {
+          if (!p_msg->api_conn.opportunistic) {
+            tBT_DEVICE_TYPE dev_type;
+            tBLE_ADDR_TYPE addr_type;
 
-        BTM_ReadDevInfo(bd_addr, &dev_type, &addr_type);
-        bool addr_is_rpa = (addr_type == BLE_ADDR_RANDOM && BTM_BLE_IS_RESOLVE_BDA(bd_addr));
-        LOG(INFO) << __func__ << " -- addr_is_rpa " << addr_is_rpa;
-        if (addr_is_rpa) {
-          dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
-          p_msg->api_conn.remote_bda = map_addr;
-        } else if (!is_remote_support_adv_audio(map_addr)) {
-          dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
-          p_msg->api_conn.remote_bda = map_addr;
+            BTM_ReadDevInfo(bd_addr, &dev_type, &addr_type);
+            bool addr_is_rpa = (addr_type == BLE_ADDR_RANDOM && BTM_BLE_IS_RESOLVE_BDA(bd_addr));
+            LOG(INFO) << __func__ << " -- addr_is_rpa " << addr_is_rpa;
+            if (addr_is_rpa) {
+              dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
+              p_msg->api_conn.remote_bda = map_addr;
+            } else if (!is_remote_support_adv_audio(map_addr)) {
+              dev_addr_map[p_msg->api_conn.client_if] = bd_addr;
+              p_msg->api_conn.remote_bda = map_addr;
+            }
+          }
         }
       }
     }
@@ -805,7 +810,7 @@ void bta_gattc_restart_discover(tBTA_GATTC_CLCB* p_clcb,
 
 /** Configure MTU size on the GATT connection */
 void bta_gattc_cfg_mtu(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
-  if (!bta_gattc_enqueue(p_clcb, p_data)) return;
+  if (bta_gattc_enqueue(p_clcb, p_data) == ENQUEUED_FOR_LATER) return;
 
   tGATT_STATUS status =
       GATTC_ConfigureMTU(p_clcb->bta_conn_id, p_data->api_mtu.mtu);
@@ -821,6 +826,7 @@ void bta_gattc_cfg_mtu(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
     }
     bta_gattc_cmpl_sendmsg(p_clcb->bta_conn_id, GATTC_OPTYPE_CONFIG, status,
         NULL);
+    bta_gattc_continue(p_clcb);
   }
 }
 
@@ -962,6 +968,8 @@ void bta_gattc_disc_cmpl(tBTA_GATTC_CLCB* p_clcb,
      * referenced by p_clcb->p_q_cmd
      */
     if (p_q_cmd != p_clcb->p_q_cmd) osi_free_and_reset((void**)&p_q_cmd);
+  } else {
+    bta_gattc_continue(p_clcb);
   }
 
   if (p_clcb->p_rcb->p_cback && p_clcb->p_srcb) {
@@ -973,7 +981,7 @@ void bta_gattc_disc_cmpl(tBTA_GATTC_CLCB* p_clcb,
 
 /** Read an attribute */
 void bta_gattc_read(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
-  if (!bta_gattc_enqueue(p_clcb, p_data)) return;
+  if (bta_gattc_enqueue(p_clcb, p_data) == ENQUEUED_FOR_LATER) return;
 
   tGATT_STATUS status;
   if (p_data->api_read.handle != 0) {
@@ -1000,12 +1008,13 @@ void bta_gattc_read(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
 
     bta_gattc_cmpl_sendmsg(p_clcb->bta_conn_id, GATTC_OPTYPE_READ, status,
                            NULL);
+    bta_gattc_continue(p_clcb);
   }
 }
 
 /** read multiple */
 void bta_gattc_read_multi(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
-  if (!bta_gattc_enqueue(p_clcb, p_data)) return;
+  if (bta_gattc_enqueue(p_clcb, p_data) == ENQUEUED_FOR_LATER) return;
 
   tGATT_READ_PARAM read_param;
   memset(&read_param, 0, sizeof(tGATT_READ_PARAM));
@@ -1032,12 +1041,13 @@ void bta_gattc_read_multi(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
 
     bta_gattc_cmpl_sendmsg(p_clcb->bta_conn_id, GATTC_OPTYPE_READ, status,
                            NULL);
+    bta_gattc_continue(p_clcb);
   }
 }
 
 /** Write an attribute */
 void bta_gattc_write(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
-  if (!bta_gattc_enqueue(p_clcb, p_data)) return;
+  if (bta_gattc_enqueue(p_clcb, p_data) == ENQUEUED_FOR_LATER) return;
 
   tGATT_STATUS status = GATT_SUCCESS;
   tGATT_VALUE attr;
@@ -1061,12 +1071,13 @@ void bta_gattc_write(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
 
     bta_gattc_cmpl_sendmsg(p_clcb->bta_conn_id, GATTC_OPTYPE_WRITE, status,
                            NULL);
+    bta_gattc_continue(p_clcb);
   }
 }
 
 /** send execute write */
 void bta_gattc_execute(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
-  if (!bta_gattc_enqueue(p_clcb, p_data)) return;
+  if (bta_gattc_enqueue(p_clcb, p_data) == ENQUEUED_FOR_LATER) return;
 
   tGATT_STATUS status =
       GATTC_ExecuteWrite(p_clcb->bta_conn_id, p_data->api_exec.is_execute);
@@ -1076,6 +1087,7 @@ void bta_gattc_execute(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
 
     bta_gattc_cmpl_sendmsg(p_clcb->bta_conn_id, GATTC_OPTYPE_EXE_WRITE, status,
                            NULL);
+    bta_gattc_continue(p_clcb);
   }
 }
 
