@@ -67,6 +67,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
 #include "audio_hal_interface/aidl/a2dp_encoding.h"
 #include "audio_hal_interface/aidl/le_audio_software.h"
 #include <hardware/audio.h>
+#include <hardware/bt_apm.h>
 #include <vector>
 #include <hardware/bt_pacs_client.h>
 #include <btif_vmcp.h>
@@ -233,17 +234,21 @@ void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
                         << ", usage: " << usage;
 
   // pass on the callbacks to ACM only for new vendor
-  if(btif_ahim_is_aosp_aidl_hal_enabled()) {
-    BTIF_TRACE_IMP("%s: sending AIDL request to Audio Group Manager", __func__);
-    if (pclient_cbs[AUDIO_GROUP_MGR - 1] &&
-        pclient_cbs[AUDIO_GROUP_MGR - 1]->src_meta_update) {
-      BTIF_TRACE_IMP("%s: calling call back for Audio Group Manager", __func__);
-      std::unique_lock<std::mutex> guard(src_metadata_wait_mutex_);
-      src_metadata_wait = false;
-      pclient_cbs[AUDIO_GROUP_MGR - 1]->src_meta_update(source_metadata);
-      src_metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(3200),
-                        []{return src_metadata_wait;});
-      BTIF_TRACE_IMP("%s: src waiting completed", __func__);
+  if (btif_ahim_is_aosp_aidl_hal_enabled()) {
+    if(cur_active_profile == A2DP) {
+      btif_report_a2dp_src_metadata_update(source_metadata);
+    } else if(cur_active_profile == AUDIO_GROUP_MGR) {
+      BTIF_TRACE_IMP("%s: sending AIDL request to Audio Group Manager", __func__);
+      if (pclient_cbs[AUDIO_GROUP_MGR - 1] &&
+          pclient_cbs[AUDIO_GROUP_MGR - 1]->src_meta_update) {
+        BTIF_TRACE_IMP("%s: calling call back for Audio Group Manager", __func__);
+        std::unique_lock<std::mutex> guard(src_metadata_wait_mutex_);
+        src_metadata_wait = false;
+        pclient_cbs[AUDIO_GROUP_MGR - 1]->src_meta_update(source_metadata);
+        src_metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(3200),
+                          []{return src_metadata_wait;});
+        BTIF_TRACE_IMP("%s: src waiting completed", __func__);
+      }
     }
   }
 }
