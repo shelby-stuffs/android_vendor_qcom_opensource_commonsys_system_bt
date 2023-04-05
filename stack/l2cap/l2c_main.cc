@@ -970,9 +970,14 @@ static void process_l2cap_cmd(tL2C_LCB* p_lcb, uint8_t* p, uint16_t pkt_len) {
           STREAM_TO_UINT16(dest_cid[i], p);
         }
          // 5.4 spec : routing to ERTM for BREDR
-        if (con_info.psm == BT_PSM_EATT && p_lcb &&
+        if (p_lcb) {
+          if (con_info.psm == BT_PSM_EATT &&
             p_lcb->transport == BT_TRANSPORT_BR_EDR) {
-          L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used");
+            L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used");
+            return;
+          }
+        } else {
+          L2CAP_TRACE_WARNING("L2CAP_CMD_CREDIT_BASED_CONNECTION_REQ: p_lcb is null");
           return;
         }
 
@@ -984,8 +989,13 @@ static void process_l2cap_cmd(tL2C_LCB* p_lcb, uint8_t* p, uint16_t pkt_len) {
       case L2CAP_CMD_CREDIT_BASED_CONNECTION_RSP:
       {
         // 5.4 spec : routing to ERTM for BREDR
-        if (p_lcb && p_lcb->transport == BT_TRANSPORT_BR_EDR) {
-          L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used.");
+        if (p_lcb) {
+          if (p_lcb->transport == BT_TRANSPORT_BR_EDR) {
+            L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used.");
+            return;
+          }
+        } else {
+          L2CAP_TRACE_WARNING("L2CAP_CMD_CREDIT_BASED_CONNECTION_RSP: p_lcb is null");
           return;
         }
         //TODO check to use similar to BREDR CONFIG RSP
@@ -1028,8 +1038,13 @@ static void process_l2cap_cmd(tL2C_LCB* p_lcb, uint8_t* p, uint16_t pkt_len) {
 
       case L2CAP_CMD_CREDIT_BASED_RECONFIGURE_REQ:
         // 5.4 spec : ertm should be used for bredr
-        if (p_lcb && p_lcb->transport == BT_TRANSPORT_BR_EDR) {
-          L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used");
+        if (p_lcb) {
+          if (p_lcb->transport == BT_TRANSPORT_BR_EDR) {
+            L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used");
+            return;
+          }
+        } else {
+          L2CAP_TRACE_WARNING("L2CAP_CMD_CREDIT_BASED_RECONFIGURE_REQ: p_lcb is null");
           return;
         }
 
@@ -1071,8 +1086,13 @@ static void process_l2cap_cmd(tL2C_LCB* p_lcb, uint8_t* p, uint16_t pkt_len) {
 
       case L2CAP_CMD_CREDIT_BASED_RECONFIGURE_RSP:
         // 5.4 spec : ertm should be used for bredr
-        if (p_lcb && p_lcb->transport == BT_TRANSPORT_BR_EDR) {
-          L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used");
+        if (p_lcb) {
+          if (p_lcb->transport == BT_TRANSPORT_BR_EDR) {
+            L2CAP_TRACE_WARNING("ERTM mode for L2CAP BR/EDR when EATT is used");
+            return;
+          }
+        } else {
+          L2CAP_TRACE_WARNING("L2CAP_CMD_CREDIT_BASED_RECONFIGURE_RSP: p_lcb is null");
           return;
         }
         if (p + 2 > p_next_cmd) {

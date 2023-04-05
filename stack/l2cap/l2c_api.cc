@@ -1233,6 +1233,12 @@ bool L2CA_ConfigReq(uint16_t cid, tL2CAP_CFG_INFO* p_cfg) {
  ******************************************************************************/
 bool L2CA_ReconfigCocReq(tL2CAP_COC_CHMAP_INFO* chmap_info, uint16_t mtu) {
   L2CAP_TRACE_API("%s, mtu = %d", __func__, mtu);
+
+  if (!chmap_info || !chmap_info->num_chnls) {
+    L2CAP_TRACE_WARNING("%s: Incomplete channel information", __func__);
+    return (false);
+  }
+
   // 5.4 spec : ertm should be used for bredr
   tL2C_CCB *p_ccb = NULL;
   uint16_t result = l2cu_validate_cids_in_use_status(chmap_info, &p_ccb);
@@ -1240,11 +1246,6 @@ bool L2CA_ReconfigCocReq(tL2CAP_COC_CHMAP_INFO* chmap_info, uint16_t mtu) {
       p_ccb->p_lcb->transport == BT_TRANSPORT_BR_EDR) {
      L2CAP_TRACE_WARNING("%s: ERTM mode for L2CAP BR/EDR when EATT is used", __func__);
      return L2C_INVALID_MODE;
-  }
-
-  if (!chmap_info || !chmap_info->num_chnls) {
-    L2CAP_TRACE_WARNING("%s: Incomplete channel information", __func__);
-    return (false);
   }
 
   //check if MTU value is acceptable
@@ -1272,6 +1273,12 @@ bool L2CA_ReconfigCocReq(tL2CAP_COC_CHMAP_INFO* chmap_info, uint16_t mtu) {
  ******************************************************************************/
 bool L2CA_ReconfigCocReqMps(tL2CAP_COC_CHMAP_INFO* chmap_info, uint16_t mps) {
   L2CAP_TRACE_API("%s, mps = %d", __func__, mps);
+
+  if (!chmap_info || !chmap_info->num_chnls) {
+    L2CAP_TRACE_WARNING("%s: Incomplete channel information", __func__);
+    return (false);
+  }
+
   // 5.4 spec : ertm should be used for bredr
   tL2C_CCB *p_ccb = NULL;
   uint16_t result = l2cu_validate_cids_in_use_status(chmap_info, &p_ccb);
@@ -1279,11 +1286,6 @@ bool L2CA_ReconfigCocReqMps(tL2CAP_COC_CHMAP_INFO* chmap_info, uint16_t mps) {
       p_ccb->p_lcb->transport == BT_TRANSPORT_BR_EDR) {
      L2CAP_TRACE_WARNING("%s: ERTM mode for L2CAP BR/EDR when EATT is used", __func__);
      return L2C_INVALID_MODE;
-  }
-
-  if (!chmap_info || !chmap_info->num_chnls) {
-    L2CAP_TRACE_WARNING("%s: Incomplete channel information", __func__);
-    return (false);
   }
 
   //check if MTU value is acceptable
