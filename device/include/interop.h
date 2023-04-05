@@ -318,6 +318,9 @@ typedef enum {
   // Send out the bonded intent after 3s timeout if sdp is still not finished.
   INTEROP_SEND_BONDED_INTENT_AFTER_SDP_TIMEOUT,
 
+  //Add remote device into INTEROP_A2DP_DELAY_DISCONNECT blacklist
+  INTEROP_A2DP_DELAY_DISCONNECT,
+
   END_OF_INTEROP_LIST
 } interop_feature_t;
 
