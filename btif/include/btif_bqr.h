@@ -62,7 +62,7 @@ static constexpr uint32_t kQualityEventMaskApproachLsto = 0x00000002;
 static constexpr uint32_t kQualityEventMaskA2dpAudioChoppy = 0x00000004;
 static constexpr uint32_t kQualityEventMaskScoVoiceChoppy = 0x00000008;
 static constexpr uint32_t kQualityEventMaskRootInflammation = 0x00000010;
-static constexpr uint32_t kQualityEventMaskConnectFail = 0x80000000;
+static constexpr uint32_t kQualityEventMaskConnectFail = 0x1 << 7;
 static constexpr uint32_t kQualityEventMaskDebugInfo = 0x00040000;
 static constexpr uint32_t kQualityEventMaskAll =
     kQualityEventMaskMonitorMode | kQualityEventMaskApproachLsto |
@@ -75,7 +75,7 @@ static constexpr uint32_t kQualityEventMaskAll =
 static constexpr uint16_t kMinReportIntervalNoLimit = 0;
 static constexpr uint16_t kMinReportIntervalMaxMs = 0xFFFF;
 // Total length of all BQR parameters except Vendor Specific Parameters.
-static constexpr uint8_t kBqrParamTotalLen = 48;
+static constexpr uint8_t kBqrParamTotalLen = 55;
 /* Total length of all parameters of the ROOT_INFLAMMATION event except Vendor
  * Specific Parameters.
  */
@@ -119,8 +119,7 @@ enum BqrQualityReportId : uint8_t {
   QUALITY_REPORT_ID_A2DP_AUDIO_CHOPPY = 0x03,
   QUALITY_REPORT_ID_SCO_VOICE_CHOPPY = 0x04,
   QUALITY_REPORT_ID_ROOT_INFLAMMATION = 0x05,
-  //Vendor Specific Report IDs from 0x20
-  QUALITY_REPORT_ID_CONNECT_FAIL = 0x20,
+  QUALITY_REPORT_ID_CONNECT_FAIL = 0x08,
 };
 
 // BQR RIE vendor specific params IDs
@@ -240,6 +239,10 @@ class BqrVseSubEvt {
   uint32_t buffer_overflow_bytes_ = 0;
   // Buffer underflow count (in byte).
   uint32_t buffer_underflow_bytes_ = 0;
+  // Remote device address
+  RawAddress bdaddr_;
+  // The count of calibration failed items
+  uint8_t cal_failed_item_count_;
   // Local wall clock timestamp of receiving BQR VSE sub-event
   std::tm tm_timestamp_ = {};
 
