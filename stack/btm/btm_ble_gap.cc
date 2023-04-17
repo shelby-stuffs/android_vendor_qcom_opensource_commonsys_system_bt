@@ -1008,8 +1008,10 @@ std::vector<uint8_t> btm_ble_process_encrypted_adv(const RawAddress& bda,
       for (size_t i=0; i<strlen(p_vec); i++) {
         enc_key_vec.push_back(p_vec[i]);
       }
-      LOG(INFO) << " Enc Data Key vector: "
-                << base::HexEncode(enc_key_vec.data(), enc_key_vec.size());
+      if (!enc_key_vec.empty()) {
+        LOG(INFO) << " Enc Data Key vector: "
+                  << base::HexEncode(enc_key_vec.data(), enc_key_vec.size());
+      }
     }
   }
 
@@ -1029,12 +1031,17 @@ std::vector<uint8_t> btm_ble_process_encrypted_adv(const RawAddress& bda,
     }
 
     if (btm_cb.enc_adv_data_log_enabled) {
-      LOG(INFO) << " Session Key: " << base::HexEncode(key.data(), key.size());
-      LOG(INFO) << " IV: " << base::HexEncode(iv.data(), iv.size());
+      if (!key.empty()) {
+        LOG(INFO) << " Session Key: " << base::HexEncode(key.data(), key.size());
+      }
+      if (!iv.empty()) {
+        LOG(INFO) << " IV: " << base::HexEncode(iv.data(), iv.size());
+      }
     }
 
     const EVP_AEAD_CTX *aeadCTX = EVP_AEAD_CTX_new(EVP_aead_aes_128_ccm_bluetooth(), key.data(),
         key.size(), EVP_AEAD_DEFAULT_TAG_LENGTH);
+    if (aeadCTX == nullptr) return empty_vec;
     int pos_index = 0;
     int enc_data_part_len = 0;
 
@@ -1079,10 +1086,18 @@ std::vector<uint8_t> btm_ble_process_encrypted_adv(const RawAddress& bda,
 
       std::vector<uint8_t> out(payload.size());
       if (btm_cb.enc_adv_data_log_enabled) {
-        LOG(INFO) << " Randomizer: " << base::HexEncode(randomizer.data(), randomizer.size());
-        LOG(INFO) << " Nonce: " << base::HexEncode(nonce.data(), nonce.size());
-        LOG(INFO) << " Payload: " << base::HexEncode(payload.data(), payload.size());
-        LOG(INFO) << " MIC: " << base::HexEncode(MIC.data(), MIC.size());
+        if (!randomizer.empty()) {
+          LOG(INFO) << " Randomizer: " << base::HexEncode(randomizer.data(), randomizer.size());
+        }
+        if (!nonce.empty()) {
+          LOG(INFO) << " Nonce: " << base::HexEncode(nonce.data(), nonce.size());
+        }
+        if (!payload.empty()) {
+          LOG(INFO) << " Payload: " << base::HexEncode(payload.data(), payload.size());
+        }
+        if (!MIC.empty()) {
+          LOG(INFO) << " MIC: " << base::HexEncode(MIC.data(), MIC.size());
+        }
       }
 
       EVP_AEAD_CTX_open_gather(aeadCTX, out.data(), nonce.data(), nonce.size(), payload.data(),
