@@ -313,7 +313,7 @@ static void process_l2cap_cmd(tL2C_LCB* p_lcb, uint8_t* p, uint16_t pkt_len) {
 
   /* if l2cap command received in CID 1 on top of an LE link, ignore this
    * command */
-  if (p_lcb->transport == BT_TRANSPORT_LE) return;
+  if ((p_lcb == NULL) || (p_lcb->transport == BT_TRANSPORT_LE)) return;
 
   /* Reject the packet if it exceeds the default Signalling Channel MTU */
   if (pkt_len > L2CAP_DEFAULT_MTU) {
