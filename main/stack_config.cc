@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #define LOG_TAG "bt_stack_config"
@@ -45,6 +49,7 @@ const char* PTS_SMP_DISABLE_H7_SUPPORT = "PTS_DisableH7Support";
 const char* PTS_DISABLE_SERVICE_CHG_INDICATION = "PTS_DisableServiceChangeIndication";
 const char* PTS_CONFIGURE_SERVICE_CHG_INDICATION = "PTS_ConfigureServiceChangeIndication";
 const char* PTS_SAVE_DB_HASH = "PTS_SaveDbHash";
+const char* PTS_ENABLE_AUTHORIZATION_ENCR_DATA_KEY = "PTS_EnableAuthorizationEncrDataKey";
 
 static config_t* config;
 
@@ -183,6 +188,11 @@ static bool get_pts_save_db_hash(void) {
                          PTS_SAVE_DB_HASH, false);
 }
 
+static bool get_pts_enable_authorization_encr_data_key(void) {
+  return config_get_bool(config, CONFIG_DEFAULT_SECTION,
+                         PTS_ENABLE_AUTHORIZATION_ENCR_DATA_KEY, false);
+}
+
 static config_t* get_all(void) { return config; }
 
 const stack_config_t interface = {get_trace_config_enabled,
@@ -205,6 +215,7 @@ const stack_config_t interface = {get_trace_config_enabled,
                                   get_pts_service_chg_indication_disable,
                                   get_pts_configure_svc_chg_indication,
                                   get_pts_save_db_hash,
+                                  get_pts_enable_authorization_encr_data_key,
                                   get_all};
 
 const stack_config_t* stack_config_get_interface(void) { return &interface; }

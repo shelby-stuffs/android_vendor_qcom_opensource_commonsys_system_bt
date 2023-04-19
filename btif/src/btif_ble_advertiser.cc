@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #define LOG_TAG "bt_btif_ble_advertiser"
@@ -156,13 +160,13 @@ class BleAdvertiserInterfaceImpl : public BleAdvertiserInterface {
                                      jni_thread_wrapper(FROM_HERE, cb)));
   }
 
-  void SetData(int advertiser_id, bool set_scan_rsp, vector<uint8_t> data,
-               StatusCallback cb) override {
+  void SetData(int advertiser_id, bool set_scan_rsp, std::vector<uint8_t> data,
+               std::vector<uint8_t> data_enc, StatusCallback cb) override {
     if (!BleAdvertisingManager::IsInitialized()) return;
     do_in_bta_thread(
         FROM_HERE,
         Bind(&BleAdvertisingManager::SetData, BleAdvertisingManager::Get(),
-             advertiser_id, set_scan_rsp, std::move(data),
+             advertiser_id, set_scan_rsp, std::move(data), std::move(data_enc),
              jni_thread_wrapper(FROM_HERE, cb)));
   }
 
@@ -203,10 +207,14 @@ class BleAdvertiserInterfaceImpl : public BleAdvertiserInterface {
   uint8_t StartAdvertisingSet(int reg_id, IdTxPowerStatusCallback cb,
                            AdvertiseParameters params,
                            std::vector<uint8_t> advertise_data,
+                           std::vector<uint8_t> advertise_data_enc,
                            std::vector<uint8_t> scan_response_data,
+                           std::vector<uint8_t> scan_response_data_enc,
                            PeriodicAdvertisingParameters periodic_params,
                            std::vector<uint8_t> periodic_data,
+                           std::vector<uint8_t> periodic_data_enc,
                            uint16_t duration, uint8_t maxExtAdvEvents,
+                           std::vector<uint8_t> enc_key_value,
                            IdStatusCallback timeout_cb) override {
     VLOG(1) << __func__;
 
@@ -222,8 +230,10 @@ class BleAdvertiserInterfaceImpl : public BleAdvertiserInterface {
         Bind(&BleAdvertisingManager::StartAdvertisingSet,
              BleAdvertisingManager::Get(), jni_thread_wrapper(FROM_HERE, cb),
              base::Owned(p_params), std::move(advertise_data),
-             std::move(scan_response_data), base::Owned(p_periodic_params),
-             std::move(periodic_data), duration, maxExtAdvEvents,
+             std::move(advertise_data_enc), std::move(scan_response_data),
+             std::move(scan_response_data_enc), base::Owned(p_periodic_params),
+             std::move(periodic_data), std::move(periodic_data_enc),
+             duration, maxExtAdvEvents, std::move(enc_key_value),
              jni_thread_wrapper(FROM_HERE, timeout_cb)));
 
     return {};
@@ -247,6 +257,7 @@ class BleAdvertiserInterfaceImpl : public BleAdvertiserInterface {
   }
 
   void SetPeriodicAdvertisingData(int advertiser_id, std::vector<uint8_t> data,
+                                  std::vector<uint8_t> data_enc,
                                   StatusCallback cb) override {
     VLOG(1) << __func__ << " advertiser_id: " << +advertiser_id;
 
@@ -254,7 +265,8 @@ class BleAdvertiserInterfaceImpl : public BleAdvertiserInterface {
     do_in_bta_thread(FROM_HERE,
                      Bind(&BleAdvertisingManager::SetPeriodicAdvertisingData,
                           BleAdvertisingManager::Get(), advertiser_id,
-                          std::move(data), jni_thread_wrapper(FROM_HERE, cb)));
+                          std::move(data), std::move(data_enc),
+                          jni_thread_wrapper(FROM_HERE, cb)));
   }
 
   void SetPeriodicAdvertisingEnable(int advertiser_id, bool enable,

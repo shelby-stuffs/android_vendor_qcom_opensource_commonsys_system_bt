@@ -15,6 +15,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 /*******************************************************************************
@@ -44,6 +48,7 @@
 #include "bta_closure_api.h"
 #include "bta_hd_api.h"
 #include "bta_hearing_aid_api.h"
+#include "bta_has_api.h"
 #include "bta_hh_api.h"
 #include "btif_api.h"
 #include "btif_config.h"
@@ -98,6 +103,7 @@ using bluetooth::Uuid;
 #define BTIF_STORAGE_KEY_CLIENT_SUPP_FEAT "ClientSupportedFeaturesChar"
 #define BTIF_STORAGE_KEY_GATT_CLIENT_DB_HASH "GattClientDatabaseHash"
 #define BTIF_STORAGE_KEY_SVC_CHG_CCCD "ServiceChangedCCCD"
+#define BTIF_STORAGE_KEY_ENCR_DATA_CCCD "EncryptedDataKeyCCCD"
 
 /* This is a local property to add a device found */
 #define BT_PROPERTY_REMOTE_DEVICE_TIMESTAMP 0xFF
@@ -2533,3 +2539,249 @@ void btif_storage_remove_svc_chg_cccd(const RawAddress& bd_addr) {
                      },
                      bd_addr));
 }
+
+constexpr char HAS_IS_ACCEPTLISTED[] = "LeAudioHasIsAcceptlisted";
+constexpr char HAS_FEATURES[] = "LeAudioHasFlags";
+constexpr char HAS_ACTIVE_PRESET[] = "LeAudioHasActivePreset";
+constexpr char HAS_SERIALIZED_PRESETS[] = "LeAudioHasSerializedPresets";
+
+void btif_storage_add_leaudio_has_device(const RawAddress& address,
+                                         std::vector<uint8_t> presets_bin,
+                                         uint8_t features,
+                                         uint8_t active_preset) {
+  do_in_jni_thread(
+      FROM_HERE,
+      Bind(
+          [](const RawAddress& address, std::vector<uint8_t> presets_bin,
+             uint8_t features, uint8_t active_preset) {
+            const std::string& name = address.ToString();
+
+            btif_config_set_int(name.c_str(), HAS_FEATURES, features);
+            btif_config_set_int(name.c_str(), HAS_ACTIVE_PRESET, active_preset);
+            btif_config_set_bin(name.c_str(), HAS_SERIALIZED_PRESETS,
+                                presets_bin.data(), presets_bin.size());
+
+            btif_config_set_int(name.c_str(), HAS_IS_ACCEPTLISTED, true);
+            btif_config_save();
+          },
+          address, std::move(presets_bin), features, active_preset));
+}
+
+void btif_storage_set_leaudio_has_active_preset(const RawAddress& address,
+                                                uint8_t active_preset) {
+  do_in_jni_thread(FROM_HERE,
+                   Bind(
+                       [](const RawAddress& address, uint8_t active_preset) {
+                         const std::string& name = address.ToString();
+
+                         btif_config_set_int(name.c_str(), HAS_ACTIVE_PRESET,
+                                             active_preset);
+                         btif_config_save();
+                       },
+                       address, active_preset));
+}
+
+bool btif_storage_get_leaudio_has_features(const RawAddress& address,
+                                           uint8_t& features) {
+  std::string name = address.ToString();
+
+  int value;
+  if (!btif_config_get_int(name.c_str(), HAS_FEATURES, &value)) return false;
+
+  features = value;
+  return true;
+}
+
+void btif_storage_set_leaudio_has_features(const RawAddress& address,
+                                           uint8_t features) {
+  do_in_jni_thread(FROM_HERE,
+                   Bind(
+                       [](const RawAddress& address, uint8_t features) {
+                         const std::string& name = address.ToString();
+
+                         btif_config_set_int(name.c_str(), HAS_FEATURES, features);
+                         btif_config_save();
+                       },
+                       address, features));
+}
+
+void btif_storage_load_bonded_leaudio_has_devices() {
+/*  for (const auto& bd_addr : btif_config_get_paired_devices()) {*/
+    for (const btif_config_section_iter_t* iter = btif_config_section_begin();
+         iter != btif_config_section_end();
+         iter = btif_config_section_next(iter)) {
+     const char* name = btif_config_section_name(iter);
+     //const std::string& name = bd_addr.ToString();
+
+    if (!btif_config_exist(name, HAS_IS_ACCEPTLISTED) &&
+        !btif_config_exist(name, HAS_FEATURES))
+      continue;
+
+    int value;
+    uint16_t is_acceptlisted = 0;
+    if (btif_config_get_int(name, HAS_IS_ACCEPTLISTED, &value))
+      is_acceptlisted = value;
+
+    uint8_t features = 0;
+    if (btif_config_get_int(name, HAS_FEATURES, &value)) features = value;
+
+    RawAddress bd_addr;
+    RawAddress::FromString(name, bd_addr);
+    do_in_bta_thread(FROM_HERE, Bind(&le_audio::has::HasClient::AddFromStorage,
+                                      bd_addr, features, is_acceptlisted));
+  }
+}
+
+void btif_storage_remove_leaudio_has(const RawAddress& address) {
+  std::string addrstr = address.ToString();
+  btif_config_remove(addrstr.c_str(), HAS_IS_ACCEPTLISTED);
+  btif_config_remove(addrstr.c_str(), HAS_FEATURES);
+  btif_config_remove(addrstr.c_str(), HAS_ACTIVE_PRESET);
+  btif_config_remove(addrstr.c_str(), HAS_SERIALIZED_PRESETS);
+  btif_config_save();
+}
+
+void btif_storage_set_leaudio_has_acceptlist(const RawAddress& address,
+                                             bool add_to_acceptlist) {
+  std::string addrstr = address.ToString();
+
+  btif_config_set_int(addrstr.c_str(), HAS_IS_ACCEPTLISTED, add_to_acceptlist);
+  btif_config_save();
+}
+
+void btif_storage_set_leaudio_has_presets(const RawAddress& address,
+                                          std::vector<uint8_t> presets_bin) {
+  do_in_jni_thread(
+      FROM_HERE,
+      Bind(
+          [](const RawAddress& address, std::vector<uint8_t> presets_bin) {
+            const std::string& name = address.ToString();
+
+            btif_config_set_bin(name.c_str(), HAS_SERIALIZED_PRESETS,
+                                presets_bin.data(), presets_bin.size());
+            btif_config_save();
+          },
+          address, std::move(presets_bin)));
+}
+
+bool btif_storage_get_leaudio_has_presets(const RawAddress& address,
+                                          std::vector<uint8_t>& presets_bin,
+                                          uint8_t& active_preset) {
+  std::string name = address.ToString();
+
+  int value;
+  if (!btif_config_get_int(name.c_str(), HAS_ACTIVE_PRESET, &value)) return false;
+  active_preset = value;
+
+  auto bin_sz = btif_config_get_bin_length(name.c_str(), HAS_SERIALIZED_PRESETS);
+  presets_bin.resize(bin_sz);
+  if (!btif_config_get_bin(name.c_str(), HAS_SERIALIZED_PRESETS, presets_bin.data(),
+                           &bin_sz))
+    return false;
+
+  return true;
+}
+
+void btif_storage_set_encr_data_cccd(const RawAddress& bd_addr, uint8_t cccd) {
+  do_in_jni_thread(FROM_HERE, Bind(
+                                  [](const RawAddress& bd_addr, uint8_t cccd) {
+                                    auto bdstr = bd_addr.ToString();
+                                    btif_config_set_int(
+                                        bdstr.c_str(), BTIF_STORAGE_KEY_ENCR_DATA_CCCD, cccd);
+                                    btif_config_save();
+                                  },
+                                  bd_addr, cccd));
+}
+
+uint8_t btif_storage_get_encr_data_cccd(const RawAddress& bda) {
+  std::string bda_str = bda.ToString();
+  int cccd = 0;
+
+  btif_config_get_int(bda_str.c_str(), BTIF_STORAGE_KEY_ENCR_DATA_CCCD, &cccd);
+  return cccd;
+}
+
+/*******************************************************************************
+ *
+ * Function         btif_storage_set_enc_key_material
+ *
+ * Description      BTIF storage API - Store encryption key material char value
+ *                  of remote server
+ *
+ * Returns          BT_STATUS_SUCCESS if the store was successful,
+ *                  BT_STATUS_FAIL otherwise
+ *
+ ******************************************************************************/
+bt_status_t btif_storage_set_enc_key_material(RawAddress* remote_bd_addr,
+                                              uint8_t* value,
+                                              uint8_t key_length) {
+  const char* name = "ENC_KEY_MATERIAL";
+  int ret;
+  if(remote_bd_addr == NULL){
+    ret = btif_config_set_bin("Adapter", name, value,
+                                key_length);
+  }
+  else{
+    ret = btif_config_set_bin(remote_bd_addr->ToString().c_str(), name, value,
+                              key_length);
+  }
+  btif_config_save();
+  return ret ? BT_STATUS_SUCCESS : BT_STATUS_FAIL;
+}
+
+/*******************************************************************************
+ *
+ * Function         btif_storage_get_enc_key_material
+ *
+ * Description
+ *
+ * Returns          BT_STATUS_SUCCESS if the fetch was successful,
+ *                  BT_STATUS_FAIL otherwise
+ *
+ ******************************************************************************/
+bt_status_t btif_storage_get_enc_key_material(RawAddress* remote_bd_addr,
+                                              uint8_t* key_value,
+                                              int* key_length) {
+  const char* name = "ENC_KEY_MATERIAL";
+  int ret;
+  LOG(INFO) << __func__;
+  if(remote_bd_addr == NULL){
+    ret = btif_config_get_bin("Adapter", name,
+                               key_value, (size_t*)&key_length);
+  }
+  else{
+    ret = btif_config_get_bin(remote_bd_addr->ToString().c_str(), name,
+                              key_value, (size_t*)&key_length);
+  }
+  return ret ? BT_STATUS_SUCCESS : BT_STATUS_FAIL;
+}
+
+/*******************************************************************************
+ *
+ * Function         btif_storage_remove_enc_key_material
+ *
+ * Description      BTIF storage API - Deletes the enc key material value
+ *                  from NVRAM
+ *
+ * Returns          BT_STATUS_SUCCESS if the deletion was successful,
+ *                  BT_STATUS_FAIL otherwise
+ *
+ ******************************************************************************/
+bt_status_t btif_storage_remove_enc_key_material(const RawAddress* remote_bd_addr) {
+  int ret = 1;
+  if(remote_bd_addr == NULL){
+    BTIF_TRACE_DEBUG(" %s in bd addr:%s", __func__, "Adapter");
+    if (btif_config_exist("Adapter", "ENC_KEY_MATERIAL"))
+      ret &= btif_config_remove("Adapter", "ENC_KEY_MATERIAL");
+  }
+  else{
+    std::string addrstr = remote_bd_addr->ToString();
+    const char* bdstr = addrstr.c_str();
+    BTIF_TRACE_DEBUG(" %s in bd addr:%s", __func__, bdstr);
+    if (btif_config_exist(bdstr, "ENC_KEY_MATERIAL"))
+      ret &= btif_config_remove(bdstr, "ENC_KEY_MATERIAL");
+  }
+  btif_config_save();
+  return ret ? BT_STATUS_SUCCESS : BT_STATUS_FAIL;
+}
+

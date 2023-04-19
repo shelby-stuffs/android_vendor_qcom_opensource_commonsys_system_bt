@@ -15,7 +15,7 @@
  *  limitations under the License.
  *
  *  Changes from Qualcomm Innovation Center are provided under the following license:
- *  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *  SPDX-License-Identifier: BSD-3-Clause-Clear
  *
  ******************************************************************************/
@@ -1858,6 +1858,19 @@ void btm_ble_link_encrypted(const RawAddress& bd_addr, uint8_t encr_enable) {
   /* Update EATT support */
   if (encr_enable)
     gatt_update_eatt_support(p_dev_rec->ble.pseudo_addr);
+
+  if (encr_enable && btm_sec_is_a_bonded_dev(p_dev_rec->ble.pseudo_addr)
+      && btm_cb.enc_adv_data_enabled) {
+    size_t length =
+        btif_config_get_bin_length(p_dev_rec->ble.pseudo_addr.ToString().c_str(), "ENC_KEY_MATERIAL");
+    tGATT_TCB* p_tcb = gatt_find_tcb_by_addr(p_dev_rec->ble.pseudo_addr, BT_TRANSPORT_LE);
+    if (p_tcb && (p_tcb->is_read_enc_key_pending ||
+        (!p_tcb->is_read_enc_key_pending && (length > 0)))) {
+      BTM_TRACE_DEBUG(" btm_ble_link_encrypted, read enc key values");
+      GAP_BleGetEncKeyMaterialInfo(p_dev_rec->ble.pseudo_addr, BT_TRANSPORT_LE);
+      p_tcb->is_read_enc_key_pending = false;
+    }
+  }
 }
 
 /*******************************************************************************
@@ -2764,6 +2777,29 @@ void btm_ble_set_random_address(const RawAddress& random_bda) {
     btsnd_hcic_ble_set_adv_enable(BTM_BLE_ADV_ENABLE);
   if (BTM_BLE_IS_SCAN_ACTIVE(p_ble_cb->scan_activity)) btm_ble_start_scan();
   btm_ble_resume_bg_conn();
+}
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleGetEncKeyMaterial
+ *
+ * Description      This function is called to get the local device Encrypted
+ *                  Data Key Material characteristic value associated with
+ *                  GAP service.
+ *
+ * Returns          void
+ *
+ ******************************************************************************/
+void BTM_BleGetEncKeyMaterial(uint8_t *enc_key_value) {
+  BTM_TRACE_DEBUG("BTM_BleGetEncKeyMaterial");
+  size_t len = btif_config_get_bin_length("Adapter", "ENC_KEY_MATERIAL");
+  VLOG(1) << __func__ << " len:" << loghex(len);
+  if (len > 0) {
+    if (btif_storage_get_enc_key_material(NULL, enc_key_value, (int*)&len)
+        == BT_STATUS_SUCCESS) {
+      VLOG(1) << __func__ << " Found Adapter Enc Key Material value";
+    }
+  }
 }
 
 #if BTM_BLE_CONFORMANCE_TESTING == TRUE

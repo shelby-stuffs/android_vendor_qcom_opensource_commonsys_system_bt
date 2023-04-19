@@ -798,10 +798,13 @@ void bta_av_co_audio_setconfig(tBTA_AV_HNDL hndl, const uint8_t* p_codec_info,
     if (!codec_config_supported) {
       category = AVDT_ASC_CODEC;
       status = A2DP_WRONG_CODEC;
+    } else {
+      status = A2dp_IsCodecConfigMatch(p_codec_info);
+      APPL_TRACE_DEBUG("%s: after setotaconfig call cfg match for codec %s", __func__,
+                         A2DP_CodecName(p_codec_info));
     }
   }
 
-  status = A2dp_IsCodecConfigMatch(p_codec_info);
   error_code = A2dp_SendSetConfigRspErrorCodeForPTS();
 
   APPL_TRACE_DEBUG("%s: status : %d, error_code: %d",
@@ -991,6 +994,11 @@ void* bta_av_co_audio_src_data_path(const uint8_t* p_codec_info,
     return NULL;
   }
 
+  if (p_buf->offset < 4) {
+    APPL_TRACE_ERROR("%s: No space for timestamp in packet, dropped", __func__);
+    return NULL;
+  }
+
   /*
    * Retrieve the timestamp information from the media packet,
    * and set up the packet header.
@@ -1004,6 +1012,7 @@ void* bta_av_co_audio_src_data_path(const uint8_t* p_codec_info,
       !A2DP_BuildCodecHeader(p_codec_info, p_buf, p_buf->layer_specific)) {
     APPL_TRACE_ERROR("%s: unsupported codec type (%d)", __func__,
                      A2DP_GetCodecType(p_codec_info));
+    return NULL;
   }
 
 #if (BTA_AV_CO_CP_SCMS_T == TRUE)

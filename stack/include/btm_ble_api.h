@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 /******************************************************************************
@@ -1330,6 +1334,8 @@ using SyncReportCb =
                                     uint8_t /*status*/, std::vector<uint8_t> /*data*/)>;
 using SyncLostCb = base::Callback<void(uint16_t /*sync_handle*/)>;
 
+using BigInfoReportCb = base::Callback<void(uint16_t /*sync_handle*/, bool /*encrypted*/)>;
+
 extern void btm_ble_periodic_adv_sync_established(uint8_t *param, uint16_t param_len);
 extern void btm_ble_periodic_adv_report(uint8_t *param, uint16_t param_len);
 extern void btm_ble_periodic_adv_sync_lost(uint8_t *param, uint16_t param_len);
@@ -1354,7 +1360,8 @@ extern void BTM_BleStartPeriodicSync(uint8_t adv_sid, RawAddress address,
                                      uint16_t skip, uint16_t timeout,
                                      StartSyncCb syncCb,
                                      SyncReportCb reportCb,
-                                     SyncLostCb lostCb);
+                                     SyncLostCb lostCb,
+                                     BigInfoReportCb biginfo_reportCb);
 /*******************************************************************************
  *
  * Function         BTM_BleStopPeriodicSync
@@ -1433,6 +1440,19 @@ void BTM_BlePeriodicSyncSetInfo(RawAddress addr, uint16_t service_data,
  ******************************************************************************/
 void BTM_BlePeriodicSyncTxParameters(RawAddress addr, uint8_t mode,
                                      uint16_t skip, uint16_t timeout, StartSyncCb syncCb);
+
+/*******************************************************************************
+ *
+ * Function         BTM_BleGetEncKeyMaterial
+ *
+ * Description      This function is called to get the local device Encrypted
+ *                  Data Key Material characteristic value associated with
+ *                  GAP service.
+ *
+ * Returns          void
+ *
+ ******************************************************************************/
+extern void BTM_BleGetEncKeyMaterial(uint8_t* enc_key_value);
 
 /*******************************************************************************
  *

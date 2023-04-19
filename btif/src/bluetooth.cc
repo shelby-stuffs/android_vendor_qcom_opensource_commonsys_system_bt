@@ -40,6 +40,7 @@
 #include <hardware/bt_hd.h>
 #include <hardware/bt_hf.h>
 #include <hardware/bt_hearing_aid.h>
+#include <hardware/bt_has.h>
 #include <hardware/bt_hf_client.h>
 #ifdef DIR_FINDING_FEATURE
 #include <hardware/bt_atp_locator.h>
@@ -58,6 +59,7 @@
 #include <hardware/bt_vendor_rc.h>
 #include "bt_utils.h"
 #include "bta_sys.h"
+#include "bta/include/bta_has_api.h"
 #include "bta/include/bta_hearing_aid_api.h"
 #include "bta/include/bta_hf_client_api.h"
 #include "btif/include/btif_debug_btsnoop.h"
@@ -90,6 +92,7 @@
 
 using base::Bind;
 using bluetooth::hearing_aid::HearingAidInterface;
+using bluetooth::has::HasClientInterface;
 #ifdef DIR_FINDING_FEATURE
 using bluetooth::atp_locator::AtpLocatorInterface;
 #endif
@@ -135,6 +138,9 @@ extern btsdp_interface_t* btif_sdp_get_interface();
 
 /*Hearing Aid client*/
 extern HearingAidInterface* btif_hearing_aid_get_interface();
+
+/* Hearing Access client */
+extern HasClientInterface* btif_has_client_get_interface();
 
 /* List all test interface here */
 /* vendor  */
@@ -419,6 +425,7 @@ static void dump(int fd, const char** arguments) {
   osi_allocator_debug_dump(fd);
   alarm_debug_dump(fd);
   HearingAid::DebugDump(fd);
+  le_audio::has::HasClient::DebugDump(fd);
   connection_manager::dump(fd);
   bluetooth::bqr::DebugDump(fd);
 #if (BTSNOOP_MEM == TRUE)
@@ -495,6 +502,9 @@ static const void* get_profile_interface(const char* profile_id) {
 
   if (is_profile(profile_id, BT_PROFILE_HEARING_AID_ID))
     return btif_hearing_aid_get_interface();
+
+  if (is_profile(profile_id, BT_PROFILE_HAP_CLIENT_ID))
+    return btif_has_client_get_interface();
 
 #ifdef DIR_FINDING_FEATURE
   if (is_profile(profile_id, BT_PROFILE_ATP_LOCATOR_ID))

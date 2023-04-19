@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #pragma once
@@ -46,6 +50,7 @@ typedef struct {
   bool (*get_pts_service_chg_indication_disable)(void);
   bool (*get_pts_configure_svc_chg_indication)(void);
   bool (*get_pts_save_db_hash)(void);
+  bool (*get_pts_enable_authorization_encr_data_key)(void);
   config_t* (*get_all)(void);
 } stack_config_t;
 

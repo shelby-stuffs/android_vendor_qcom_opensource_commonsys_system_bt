@@ -1425,7 +1425,8 @@ bool a2dp_get_selected_hal_codec_config(CodecConfiguration* codec_config) {
   // Obtain the MTU
   codec_config->peerMtu = peer_param.peer_mtu - A2DP_HEADER_SIZE;
   if (A2DP_MEDIA_CT_SBC == codec_type) {
-    bitrate = A2DP_GetOffloadBitrateSbc(a2dp_codec_configs, peer_param.is_peer_edr);
+    bitrate = A2DP_GetOffloadBitrateSbc(a2dp_codec_configs, peer_param.is_peer_edr,
+                                        (const uint8_t*)p_codec_info);
     LOG(INFO) << __func__ << "SBC bitrate" << bitrate;
     codec_config->encodedAudioBitrate = bitrate * 1000;
   }
@@ -2135,7 +2136,8 @@ bool a2dp_get_selected_hal_codec_config_2_1(CodecConfiguration_2_1* codec_config
   // Obtain the MTU
   codec_config->peerMtu = peer_param.peer_mtu - A2DP_HEADER_SIZE;
   if (A2DP_MEDIA_CT_SBC == codec_type) {
-    bitrate = A2DP_GetOffloadBitrateSbc(a2dp_codec_configs, peer_param.is_peer_edr);
+    bitrate = A2DP_GetOffloadBitrateSbc(a2dp_codec_configs, peer_param.is_peer_edr,
+                                        (const uint8_t*)p_codec_info);
     LOG(INFO) << __func__ << "SBC bitrate" << bitrate;
     codec_config->encodedAudioBitrate = bitrate * 1000;
   }

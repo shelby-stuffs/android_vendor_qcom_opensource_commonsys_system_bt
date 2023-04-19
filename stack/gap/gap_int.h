@@ -14,6 +14,10 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
+ *  ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+ *  Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *  SPDX-License-Identifier: BSD-3-Clause-Clear
+ *
  ******************************************************************************/
 
 #ifndef GAP_INT_H
@@ -53,7 +57,7 @@ typedef struct {
   tGAP_CCB ccb_pool[GAP_MAX_CONNECTIONS];
 } tGAP_CONN;
 
-#define GAP_MAX_CHAR_NUM 4
+#define GAP_MAX_CHAR_NUM 5
 
 typedef struct {
   uint16_t handle;

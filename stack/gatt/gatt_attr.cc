@@ -62,6 +62,7 @@
 
 #include "gatt_api.h"
 #include "gatt_int.h"
+#include "gap_api.h"
 #include "osi/include/osi.h"
 #include "osi/include/properties.h"
 
@@ -876,6 +877,10 @@ static void gatt_cl_op_cmpl_cback(uint16_t conn_id,
           gatt_apps_need_eatt(p_tcb)) {
         GATT_Config(p_tcb->peer_bda, p_tcb->transport);
       }
+    }
+
+    if (btm_cb.enc_adv_data_enabled) {
+      GAP_BleGetEncKeyMaterialInfo(p_clcb->bda, p_clcb->transport);
     }
   }
 }
