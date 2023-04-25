@@ -28,7 +28,8 @@
  *
  ******************************************************************************/
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 
     * Redistribution and use in source and binary forms, with or without
       modification, are permitted (subject to the limitations in the
@@ -224,6 +225,11 @@ void btif_ahim_process_request(tA2DP_CTRL_CMD cmd, uint8_t profile,
         BTIF_TRACE_ERROR("%s, BROADCAST is not registered with AHIM", __func__);
       break;
   }
+}
+
+void btif_ahim_set_latency_mode(bool is_low_latency) {
+  LOG(INFO) << __func__ << ", is_low_latency: " << is_low_latency;
+  btif_apm_set_latency_mode(is_low_latency);
 }
 
 void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
