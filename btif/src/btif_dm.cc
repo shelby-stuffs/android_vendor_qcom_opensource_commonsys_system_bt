@@ -87,6 +87,7 @@
 #include <map>
 
 #include <mutex>
+#include <optional>
 
 #include <bluetooth/uuid.h>
 #include "hardware/vendor.h"
@@ -3663,11 +3664,12 @@ void btif_dm_load_local_oob(void) {
 }
 
 static bool waiting_on_oob_advertiser_start = false;
-static uint8_t oob_advertiser_id = 0;
+static std::optional<uint8_t> oob_advertiser_id;
 static void stop_oob_advertiser() {
+  LOG_DEBUG(LOG_TAG, "oob_advertiser_id: %d", oob_advertiser_id.value());
   auto advertiser = get_ble_advertiser_instance();
-  advertiser->Unregister(oob_advertiser_id);
-  oob_advertiser_id = 0;
+  advertiser->Unregister(oob_advertiser_id.value());
+  oob_advertiser_id = {};
 }
 
 /*******************************************************************************
@@ -3688,7 +3690,8 @@ void btif_dm_generate_local_oob_data(tBT_TRANSPORT transport) {
     // the state machine lifecycle.  Rather, lets create the data, then start
     // advertising then request the address.
     if (!waiting_on_oob_advertiser_start) {
-      if (oob_advertiser_id != 0) {
+      LOG_DEBUG(LOG_TAG, "oob_advertiser_id: %d", oob_advertiser_id.value_or(255));
+      if (oob_advertiser_id.has_value()) {
         stop_oob_advertiser();
       }
       waiting_on_oob_advertiser_start = true;
@@ -3721,7 +3724,7 @@ static void start_advertising_callback(uint8_t id, tBT_TRANSPORT transport,
     invoke_oob_data_request_cb(transport, false, c, r, RawAddress{}, 0x00);
     SMP_ClearLocScOobData();
     waiting_on_oob_advertiser_start = false;
-    oob_advertiser_id = 0;
+    oob_advertiser_id = {};
     return;
   }
   LOG_DEBUG(LOG_TAG, "OOB advertiser with id %hhd", id);
@@ -3737,7 +3740,7 @@ static void timeout_cb(uint8_t id, uint8_t status) {
   advertiser->Unregister(id);
   SMP_ClearLocScOobData();
   waiting_on_oob_advertiser_start = false;
-  oob_advertiser_id = 0;
+  oob_advertiser_id = {};
 }
 
 // Step Two: CallBack from Step One, advertise and get address
@@ -3749,11 +3752,12 @@ static void id_status_callback(tBT_TRANSPORT transport, bool is_valid,
     invoke_oob_data_request_cb(transport, false, c, r, RawAddress{}, 0x00);
     SMP_ClearLocScOobData();
     waiting_on_oob_advertiser_start = false;
-    oob_advertiser_id = 0;
+    oob_advertiser_id = {};
     return;
   }
 
   oob_advertiser_id = id;
+  LOG_INFO(LOG_TAG, "oob_advertiser_id: %d", id);
 
   auto advertiser = get_ble_advertiser_instance();
   AdvertiseParameters parameters;
