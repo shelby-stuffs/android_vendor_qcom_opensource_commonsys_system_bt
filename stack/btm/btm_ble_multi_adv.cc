@@ -268,7 +268,7 @@ class BleAdvertisingManagerImpl
 
   std::vector<uint8_t> EncryptedAdvertising(AdvertisingInstance* p_inst,
                                             std::vector<uint8_t> data) {
-    std::vector<uint8_t> ED_AD_Data = {}; /*Randomizer + Payload + Out_Tag(MIC)*/
+    std::vector<uint8_t> ED_AD_Data; /*Randomizer + Payload + Out_Tag(MIC)*/
     std::vector<uint8_t> key;
     std::vector<uint8_t> iv;
     if (p_inst->enc_key_value.empty()) { /* Check to see if we have a user provided Key & IV*/
