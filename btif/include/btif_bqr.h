@@ -69,6 +69,7 @@ static constexpr uint32_t kQualityEventMaskAll =
     kQualityEventMaskA2dpAudioChoppy | kQualityEventMaskScoVoiceChoppy |
     kQualityEventMaskRootInflammation | kQualityEventMaskConnectFail |
     kQualityEventMaskDebugInfo;
+static constexpr uint32_t kQualityEventMaskVsConnectFail = 0x80000000;
 // Define the minimum time interval (in ms) of quality event reporting for the
 // selected quality event(s). Controller Firmware should not report the next
 // event within the defined time interval.
@@ -101,6 +102,9 @@ static constexpr const char* kpPropertyMinReportIntervalMs =
 static constexpr const char* kpPropertyChoppyThreshold =
     "persist.bluetooth.bqr.choppy_threshold";
 
+// The version moves ConnectFail to bit7 start from v1.02(258)
+static constexpr uint16_t kBqrConnectFailVersion = 258;
+
 // Action definition
 //
 // Action to Add, Delete or Clear the reporting of quality event(s).
@@ -120,6 +124,8 @@ enum BqrQualityReportId : uint8_t {
   QUALITY_REPORT_ID_SCO_VOICE_CHOPPY = 0x04,
   QUALITY_REPORT_ID_ROOT_INFLAMMATION = 0x05,
   QUALITY_REPORT_ID_CONNECT_FAIL = 0x08,
+
+  QUALITY_REPORT_ID_VS_CONNECT_FAIL = 0x20,
 };
 
 // BQR RIE vendor specific params IDs

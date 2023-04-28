@@ -35,6 +35,19 @@ using std::chrono::system_clock;
 static std::unique_ptr<LeakyBondedQueue<BqrVseSubEvt>> kpBqrEventQueue(
     new LeakyBondedQueue<BqrVseSubEvt>(kBqrEventQueueSize));
 
+static uint16_t vendor_cap_supported_version;
+
+static uint32_t GetVsQualityEventMask(uint32_t event_mask) {
+  if (vendor_cap_supported_version < kBqrConnectFailVersion &&
+      (event_mask & kQualityEventMaskConnectFail)) {
+    event_mask = event_mask & (~kQualityEventMaskConnectFail);
+    event_mask = event_mask | kQualityEventMaskVsConnectFail;
+    LOG(INFO) << __func__
+              << ": event_mask: " << loghex(event_mask);
+  }
+  return event_mask;
+}
+
 bool BqrVseSubEvt::IsEvtToBeParsed(uint8_t quality_report_id) {
   switch (quality_report_id) {
     case QUALITY_REPORT_ID_MONITOR_MODE:
@@ -54,8 +67,16 @@ bool BqrVseSubEvt::ParseBqrEvt(uint8_t length, uint8_t* p_param_buf) {
     LOG(FATAL) << __func__ << ": BQR event doesn't contain report id";
     return false;
   }
+  uint8_t* p_quality_report_id = p_param_buf;
 
   STREAM_TO_UINT8(quality_report_id_, p_param_buf);
+
+  if (quality_report_id_ == QUALITY_REPORT_ID_VS_CONNECT_FAIL &&
+      vendor_cap_supported_version < kBqrConnectFailVersion) {
+    quality_report_id_ = QUALITY_REPORT_ID_CONNECT_FAIL;
+    *p_quality_report_id = QUALITY_REPORT_ID_CONNECT_FAIL;
+    LOG(INFO) << __func__ << ": convert VS_ID_CONNECT_FAIL to ID_CONNECT_FAIL";
+  }
 
   if (!IsEvtToBeParsed(quality_report_id_)) {
     LOG(WARNING) << __func__ << ": not need to parse report(" << loghex(quality_report_id_) << ")";
@@ -243,10 +264,7 @@ void AddBqrEventToQueue(uint8_t length, uint8_t* p_stream) {
   LOG(WARNING) << *p_bqr_event;
 
   if (length >= kBqrParamTotalLen) {
-    RawAddress bd_addr;
-    uint8_t* p_addr = p_stream + kBqrParamTotalLen;
-    STREAM_TO_BDADDR(bd_addr, p_addr);
-    btif_vendor_bqr_delivery_event(&bd_addr, p_stream, length);
+    btif_vendor_bqr_delivery_event(&(p_bqr_event->bdaddr_), p_stream, length);
   } else {
     LOG(WARNING) << __func__ << ": BQR event doesn't contain remote address";
   }
@@ -312,6 +330,10 @@ void EnableBtQualityReport(bool is_enable) {
   osi_property_get(kpPropertyEventMask, bqr_prop_evtmask, "");
   osi_property_get(kpPropertyMinReportIntervalMs, bqr_prop_interval_ms, "");
 
+  tBTM_BLE_VSC_CB cmn_vsc_cb;
+  BTM_BleGetVendorCapabilities(&cmn_vsc_cb);
+  vendor_cap_supported_version = cmn_vsc_cb.version_supported;
+
   if (strlen(bqr_prop_evtmask) == 0 || strlen(bqr_prop_interval_ms) == 0) {
    /* By default BQR RIE is enabled and since BQR RIE dont depend on SoC,
     * report interval is 0.
@@ -344,9 +366,13 @@ void EnableBtQualityReport(bool is_enable) {
 #endif
     bqr_config.minimum_report_interval_ms =
         static_cast<uint16_t>(atoi(bqr_prop_interval_ms));
+
+    if (vendor_cap_supported_version < kBqrConnectFailVersion) {
+      bqr_config.quality_event_mask = GetVsQualityEventMask(bqr_config.quality_event_mask);
+    }
   } else {
     bqr_config.report_action = REPORT_ACTION_DELETE;
-    bqr_config.quality_event_mask = kQualityEventMaskAll;
+    bqr_config.quality_event_mask = GetVsQualityEventMask(kQualityEventMaskAll);
 #ifdef BLUEDROID_DEBUG
     // Dont disable FW dumps in userdebug/eng. builds.
     bqr_config.quality_event_mask = bqr_config.quality_event_mask & ~kQualityEventMaskDebugInfo;
@@ -356,7 +382,8 @@ void EnableBtQualityReport(bool is_enable) {
 
   LOG(INFO) << __func__
             << ": Event Mask: " << loghex(bqr_config.quality_event_mask)
-            << ", Interval: " << bqr_config.minimum_report_interval_ms;
+            << ", Interval: " << bqr_config.minimum_report_interval_ms
+            << ", vendor_cap_supported_version: " << vendor_cap_supported_version;
   ConfigureBqr(bqr_config);
 }
 
@@ -393,8 +420,10 @@ void BqrVscCompleteCallback(tBTM_VSC_CMPL* p_vsc_cmpl_params) {
 }
 
 void ConfigureBqr(const BqrConfiguration& bqr_config) {
+  const uint32_t vsQualityEventMaskAll = GetVsQualityEventMask(kQualityEventMaskAll);
+
   if (bqr_config.report_action > REPORT_ACTION_CLEAR ||
-      bqr_config.quality_event_mask > kQualityEventMaskAll ||
+      bqr_config.quality_event_mask > vsQualityEventMaskAll ||
       bqr_config.minimum_report_interval_ms > kMinReportIntervalMaxMs) {
     LOG(FATAL) << __func__ << ": Invalid Parameter"
                << ", Action: " << (int)bqr_config.report_action
