@@ -1484,6 +1484,13 @@ static void btif_dm_auth_cmpl_evt(tBTA_DM_AUTH_CMPL* p_auth_cmpl) {
     // Do not call bond_state_changed_cb yet. Wait until remote service
     // discovery is complete
   } else {
+#ifdef ADV_AUDIO_FEATURE
+    if ((pairing_cb.bd_addr == bd_addr) &&
+        (is_remote_support_adv_audio(bd_addr))) {
+        bta_dm_reset_adv_audio_pairing_info(bd_addr);
+    }
+#endif
+
     // Map the HCI fail reason  to  bt status
     switch (p_auth_cmpl->fail_reason) {
       case HCI_ERR_PAGE_TIMEOUT:
@@ -2308,6 +2315,14 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
             bond_state_changed(BT_STATUS_FAIL, pairing_cb.bd_addr, BT_BOND_STATE_NONE);
       }
 
+#ifdef ADV_AUDIO_FEATURE
+      if ((pairing_cb.bd_addr == bd_addr) &&
+          (is_remote_support_adv_audio(bd_addr))) {
+        BTIF_TRACE_WARNING("%s resetting adv audio pairing info ", __func__);
+        bta_dm_reset_adv_audio_pairing_info(bd_addr);
+        bond_state_changed(BT_STATUS_FAIL, pairing_cb.bd_addr, BT_BOND_STATE_NONE);
+      }
+#endif
       if (num_active_le_links > 0 &&
           p_data->link_down.link_type == BT_TRANSPORT_LE) {
         num_active_le_links--;
