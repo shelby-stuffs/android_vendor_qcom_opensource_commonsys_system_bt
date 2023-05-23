@@ -831,6 +831,8 @@ LeAudioClientInterface::Sink* LeAudioClientInterface::GetSink(
   Sink* sink = is_broadcasting_session_type ? broadcast_sink_ : unicast_sink_;
   if (sink == nullptr) {
     sink = new Sink(is_broadcasting_session_type);
+    if (is_broadcasting_session_type) broadcast_sink_ = sink;
+    else unicast_sink_ = sink;
   } else {
     LOG(WARNING) << __func__ << ", Sink is already acquired";
     return nullptr;

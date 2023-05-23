@@ -116,6 +116,7 @@ bool snk_metadata_wait;
 
 uint8_t cur_active_profile = A2DP;
 std::mutex active_profile_mtx;
+std::mutex session_mtx;
 
 #define BAP        0x01
 #define GCP        0x02
@@ -295,8 +296,21 @@ void btif_ahim_update_sink_metadata (const sink_metadata_t& sink_metadata) {
 
 bool btif_ahim_init_hal(thread_t *t, uint8_t profile) {
   if(btif_ahim_is_aosp_aidl_hal_enabled()) {
+    std::lock_guard<std::mutex>lock(session_mtx);
     BTIF_TRACE_IMP("%s: AIDL", __func__);
     if (profile == A2DP) {
+      if (unicastSinkClientInterface != nullptr) {
+        leAudioClientInterface->ReleaseSink(unicastSinkClientInterface);
+        unicastSinkClientInterface = nullptr;
+      }
+      if (unicastSourceClientInterface != nullptr) {
+        leAudioClientInterface->ReleaseSource(unicastSourceClientInterface);
+        unicastSourceClientInterface = nullptr;
+      }
+      if (broadcastSinkClientInterface != nullptr) {
+        leAudioClientInterface->ReleaseSink(broadcastSinkClientInterface);
+        broadcastSinkClientInterface = nullptr;
+      }
       return bluetooth::audio::aidl::a2dp::init(t);
     } else {
       if(leAudioClientInterface == nullptr) {
@@ -829,6 +843,7 @@ void btif_ahim_start_session(uint8_t profile) {
 
 void btif_ahim_end_session(uint8_t profile) {
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
+    std::lock_guard<std::mutex>lock(session_mtx);
     BTIF_TRACE_IMP("%s: AIDL, profile: %d", __func__, profile);
     if (profile == A2DP) {
        return bluetooth::audio::aidl::a2dp::end_session();
