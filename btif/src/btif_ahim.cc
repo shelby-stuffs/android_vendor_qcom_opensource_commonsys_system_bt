@@ -243,7 +243,7 @@ void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
   // pass on the callbacks to ACM only for new vendor
   if (btif_ahim_is_aosp_aidl_hal_enabled()) {
     if(cur_active_profile == A2DP) {
-      btif_report_a2dp_src_metadata_update(source_metadata);
+      btif_report_a2dp_src_metadata_update((source_metadata_t *)&source_metadata);
     } else if(cur_active_profile == AUDIO_GROUP_MGR ||
         cur_active_profile == BROADCAST) {
       BTIF_TRACE_IMP("%s: sending AIDL request to Audio Group Manager", __func__);
