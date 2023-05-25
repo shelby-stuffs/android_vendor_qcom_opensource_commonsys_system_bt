@@ -3351,6 +3351,7 @@ static void btif_av_handle_event(uint16_t event, char* p_param) {
             BTIF_TRACE_IMP("Null -> Device, btif_a2dp_source_restart_session failed");
           }
         }
+        btif_av_signal_session_ready();
         break;
       }
 
