@@ -1803,6 +1803,12 @@ static void btif_dm_search_devices_evt(uint16_t event, char* p_param) {
                   BT_DISCOVERY_STOPPED);
       }
     } break;
+#ifdef ADV_AUDIO_FEATURE
+    case BTA_DM_LE_AUDIO_SEARCH_CMPL_EVT: {
+      btif_dm_lea_search_services_evt(event, p_param);
+      break;
+    }
+#endif
   }
 }
 
@@ -3271,7 +3277,7 @@ bt_status_t btif_dm_get_adapter_property(bt_property_t* prop) {
       prop->len = sizeof(bt_io_cap_t);
     } break;
 
-    case BT_PROPERTY_LOCAL_IO_CAPS_BLE: {
+    case BT_PROPERTY_RESERVED_0F: {
       *(bt_io_cap_t*)prop->val = (bt_io_cap_t)BTM_LOCAL_IO_CAPS_BLE;
       prop->len = sizeof(bt_io_cap_t);
     } break;
