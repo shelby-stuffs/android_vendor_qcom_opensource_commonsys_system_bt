@@ -3987,6 +3987,11 @@ static void btif_dm_ble_auth_cmpl_evt(tBTA_DM_AUTH_CMPL* p_auth_cmpl) {
             btif_storage_remove_bonded_device(&bd_addr);
             status = BT_STATUS_AUTH_FAILURE;
             break;
+          } else if ((pairing_cb.state == BT_BOND_STATE_BONDING) &&
+            btm_sec_is_a_bonded_dev_by_transport(bd_addr, BT_TRANSPORT_LE)) {
+            btif_storage_remove_bonded_device(&bd_addr);
+            status = BT_STATUS_AUTH_FAILURE;
+            break;
           } else {
             LOG(INFO) << __func__ << " Bonded device addr=" << bd_addr
                     << " timed out - will not remove the keys";
