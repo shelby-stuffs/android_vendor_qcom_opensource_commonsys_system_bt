@@ -2309,7 +2309,7 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
       btif_update_remote_version_property(&bd_addr);
 
       HAL_CBACK(bt_hal_cbacks, acl_state_changed_cb, BT_STATUS_SUCCESS,
-                &bd_addr, BT_ACL_STATE_CONNECTED, p_data->link_down.link_type, HCI_SUCCESS,
+                &bd_addr, BT_ACL_STATE_CONNECTED, p_data->link_up.link_type, HCI_SUCCESS,
                 bt_conn_direction_t::BT_CONN_DIRECTION_UNKNOWN, 0);
       break;
 
