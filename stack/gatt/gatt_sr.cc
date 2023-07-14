@@ -453,7 +453,14 @@ void gatt_process_exec_write_req(tGATT_TCB& tcb, uint16_t lcid, uint8_t op_code,
   } else /* nothing needs to be executed , send response now */
   {
     LOG(ERROR) << "gatt_process_exec_write_req: no prepare write pending";
-    gatt_send_error_rsp(tcb, lcid, GATT_ERROR, GATT_REQ_EXEC_WRITE, 0, false);
+    BT_HDR* p_rsp_msg =
+        attp_build_sr_msg(tcb, lcid, GATT_RSP_EXEC_WRITE, (tGATT_SR_MSG*)NULL);
+    if (p_rsp_msg != NULL) {
+      tGATT_STATUS status_code = attp_send_sr_msg(tcb, lcid, p_rsp_msg);
+      LOG(WARNING)
+          << "gatt_process_exec_write_req: response sent : status_code = "
+          << loghex(status_code);
+    }
   }
 }
 
