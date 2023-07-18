@@ -213,11 +213,6 @@ void BluetoothAudioClientInterface::FetchAudioProvider() {
   }
   CHECK(provider_ != nullptr);
 
-  binder_status_t binder_status = AIBinder_linkToDeath(
-     provider_factory->asBinder().get(), death_recipient_.get(), this);
-  if (binder_status != STATUS_OK) {
-    LOG(ERROR) << ": Failed to linkToDeath " << static_cast<int>(binder_status);
-  }
   provider_factory_ = std::move(provider_factory);
 
   LOG(INFO) << ": AIDL: IBluetoothAudioProvidersFactory::openProvider() returned "
@@ -394,6 +389,12 @@ int BluetoothAudioClientInterface::StartSession() {
     latency_modes.push_back(LatencyMode::LOW_LATENCY);
   }
 
+  binder_status_t binder_status = AIBinder_linkToDeath(
+     provider_factory_->asBinder().get(), death_recipient_.get(), this);
+  if (binder_status != STATUS_OK) {
+    LOG(ERROR) << ": Failed to linkToDeath " << static_cast<int>(binder_status);
+  }
+
   auto aidl_retval = provider_->startSession(
       stack_if, transport_->GetAudioConfiguration(), latency_modes, &mq_desc);
   if (!aidl_retval.isOk()) {
@@ -503,6 +504,15 @@ int BluetoothAudioClientInterface::EndSession() {
                << aidl_retval.getDescription();
     return -EPROTO;
   }
+
+  if (provider_factory_ != nullptr) {
+    binder_status_t binder_status = AIBinder_unlinkToDeath(provider_factory_->asBinder().get(),
+                                                           death_recipient_.get(), this);
+    if (binder_status == STATUS_OK) {
+       LOG(ERROR) << __func__ << ": AIBinder_unlinkToDeath success";
+    }
+  }
+
   return 0;
 }
 
