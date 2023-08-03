@@ -145,6 +145,9 @@ const Uuid UUID_HEARING_AID = Uuid::FromString("FDF0");
 
 #define COD_MASK 0x07FF
 
+/* Focus on Major and minor device class*/
+#define COD_DEVICE_MASK 0x1FFC
+
 #define COD_UNCLASSIFIED ((0x1F) << 8)
 #define COD_HID_KEYBOARD 0x0540
 #define COD_HID_POINTING 0x0580
@@ -614,7 +617,7 @@ static uint32_t get_cod(const RawAddress* remote_bdaddr) {
 }
 
 bool check_cod(const RawAddress* remote_bdaddr, uint32_t cod) {
-  return get_cod(remote_bdaddr) == cod;
+  return (get_cod(remote_bdaddr) & COD_DEVICE_MASK) == cod;
 }
 
 bool check_cod_hid(const RawAddress* remote_bdaddr) {
@@ -829,7 +832,7 @@ static void btif_update_remote_properties(const RawAddress& bdaddr,
   /* class of device */
   cod = devclass2uint(dev_class);
   BTIF_TRACE_DEBUG("%s cod is 0x%06x", __func__, cod);
-  if (cod == 0) {
+  if ((cod == 0) || (cod == COD_UNCLASSIFIED)) {
     /* Try to retrieve cod from storage */
     BTIF_TRACE_DEBUG("%s cod is 0, checking cod from storage", __func__);
     BTIF_STORAGE_FILL_PROPERTY(&properties[num_properties],
@@ -1379,9 +1382,14 @@ static void btif_dm_auth_cmpl_evt(tBTA_DM_AUTH_CMPL* p_auth_cmpl) {
         ASSERTC(status == TRUE, "Adding TWS_PLUS dev type failed", status);
       }
 
-      ret = btif_storage_add_bonded_device(&bd_addr, p_auth_cmpl->key,
-                                           p_auth_cmpl->key_type,
-                                           pairing_cb.pin_code_len);
+      if (!bd_addr.IsEmpty()) {
+        ret = btif_storage_add_bonded_device(&bd_addr, p_auth_cmpl->key,
+                                             p_auth_cmpl->key_type,
+                                             pairing_cb.pin_code_len);
+      } else {
+        BTIF_TRACE_WARNING("%s: bd_addr is empty", __func__);
+        ret = BT_STATUS_FAIL;
+      }
       ASSERTC(ret == BT_STATUS_SUCCESS, "storing link key failed", ret);
     } else {
       BTIF_TRACE_DEBUG(
@@ -1772,6 +1780,16 @@ static void btif_dm_search_devices_evt(uint16_t event, char* p_param) {
         status = btif_storage_set_remote_addr_type(&bdaddr, addr_type);
         ASSERTC(status == BT_STATUS_SUCCESS,
                 "failed to save remote addr type (inquiry)", status);
+
+        bool restrict_report = osi_property_get_bool(
+            "bluetooth.restrict_discovered_device.enabled", false);
+        if (restrict_report &&
+            p_search_data->inq_res.device_type == BT_DEVICE_TYPE_BLE &&
+            !(p_search_data->inq_res.ble_evt_type & BTM_BLE_CONNECTABLE_MASK)) {
+          LOG_INFO(LOG_TAG, "%s Ble device is not connectable %s", __func__, bdaddr);
+          break;
+        }
+
         /* Callback to notify upper layer of device */
         HAL_CBACK(bt_hal_cbacks, device_found_cb, num_properties, properties);
 
@@ -3078,14 +3096,16 @@ void btif_dm_create_bond_out_of_band(const RawAddress * bd_addr,
           break;
         case BTM_OOB_PRESENT_256:
           LOG_INFO(LOG_TAG, "Using P256");
-          [[fallthrough]];
-        default:
           // TODO(181889116):
           // Upgrade to support p256 (for now we just ignore P256)
           // because the controllers do not yet support it.
+          bond_state_changed(BT_STATUS_UNSUPPORTED, *bd_addr,
+                             BT_BOND_STATE_NONE);
+          return;
+        default:
           LOG_ERROR(LOG_TAG, "Invalid data present for controller: %d",
                     oob_cb.data_present);
-          bond_state_changed(BT_STATUS_FAIL, *bd_addr, BT_BOND_STATE_NONE);
+          bond_state_changed(BT_STATUS_UNSUPPORTED, *bd_addr, BT_BOND_STATE_NONE);
           return;
       }
       pairing_cb.is_local_initiated = true;
@@ -3125,7 +3145,7 @@ void btif_dm_create_bond_out_of_band(const RawAddress * bd_addr,
     }
     default:
       LOG_ERROR(LOG_TAG, "Invalid transport: %d", transport);
-      bond_state_changed(BT_STATUS_FAIL, *bd_addr, BT_BOND_STATE_NONE);
+      bond_state_changed(BT_STATUS_PARM_INVALID, *bd_addr, BT_BOND_STATE_NONE);
       return;
   }
 }
@@ -3196,7 +3216,7 @@ void btif_dm_hh_open_failed(RawAddress* bdaddr) {
     btif_storage_remove_bonded_device(bdaddr);
     BTA_DmRemoveDevice(*bdaddr);
     BTA_DmResetPairingflag(pairing_cb.bd_addr);
-    bond_state_changed(BT_STATUS_FAIL, *bdaddr, BT_BOND_STATE_NONE);
+    bond_state_changed(BT_STATUS_RMT_DEV_DOWN, *bdaddr, BT_BOND_STATE_NONE);
   }
 }
 
@@ -3655,7 +3675,11 @@ void btif_dm_generate_local_oob_data(tBT_TRANSPORT transport) {
         stop_oob_advertiser();
       }
       waiting_on_oob_advertiser_start = true;
-      SMP_CrLocScOobData();
+      if (!SMP_CrLocScOobData()) {
+        waiting_on_oob_advertiser_start = false;
+        invoke_oob_data_request_cb(transport, false, Octet16{}, Octet16{},
+                                   RawAddress{}, 0x00);
+      }
     } else {
       invoke_oob_data_request_cb(transport, false, Octet16{}, Octet16{},
                                  RawAddress{}, 0x00);
@@ -4068,6 +4092,11 @@ void btif_dm_get_ble_local_keys(tBTA_DM_BLE_LOCAL_KEY_MASK* p_key_mask,
 
 void btif_dm_save_ble_bonding_keys(RawAddress& bd_addr) {
   BTIF_TRACE_DEBUG("%s", __func__);
+
+  if (bd_addr.IsEmpty()) {
+    BTIF_TRACE_WARNING("%s: bd_addr is empty", __func__);
+    return;
+  }
 
   if (pairing_cb.ble.is_penc_key_rcvd) {
     btif_storage_add_ble_bonding_key(

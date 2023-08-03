@@ -586,6 +586,10 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
       le_vendor_config.codecSpecificData[5] = 0x11; // Aptx Adaptive Type
       le_vendor_config.codecSpecificData[8] = frame_duration;
       le_vendor_config.codecSpecificData[9] = pclient_cbs[profile - 1]->get_feature_map(direction);
+      if(codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_LE) {
+        le_vendor_config.codecSpecificData[6] = 0;
+        le_vendor_config.codecSpecificData[7] = pclient_cbs[profile - 1]->get_codec_version_aptx(direction);
+      }
       if (codec_type == CodecIndex::CODEC_INDEX_SOURCE_APTX_ADAPTIVE_R4) {
         le_vendor_config.vendorCodecType = VendorCodecType::APTX_ADAPTIVE_R4;
         LOG(ERROR) << __func__ << ": AptX R4 metadata params are updated";
