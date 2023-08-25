@@ -1542,9 +1542,6 @@ static void bta_gattc_enc_cmpl_cback(tGATT_IF gattc_if, const RawAddress& bda) {
 
   if (p_clcb == NULL) return;
 
-#if (BTA_HH_LE_INCLUDED == TRUE)
-#endif
-
   VLOG(1) << __func__ << ": cif:" << +gattc_if;
 
   do_in_bta_thread(FROM_HERE,
