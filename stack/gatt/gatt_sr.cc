@@ -907,25 +907,26 @@ static void gatts_process_mtu_req(tGATT_TCB& tcb, uint16_t lcid, uint16_t len,
   uint8_t* p = p_data;
   STREAM_TO_UINT16(mtu, p);
   /* mtu must be greater than default MTU which is 23/48 */
-  if (mtu < GATT_DEF_BLE_MTU_SIZE)
+  if (mtu < GATT_DEF_BLE_MTU_SIZE) {
     tcb.payload_size = GATT_DEF_BLE_MTU_SIZE;
-  else if (mtu > GATT_MAX_MTU_SIZE)
-    tcb.payload_size = GATT_MAX_MTU_SIZE;
-  else
-    tcb.payload_size = mtu;
+  } else {
+    tcb.payload_size = std::min(mtu, (uint16_t)(GATT_MAX_MTU_SIZE));
+  }
 
   if (tcb.payload_size > GATT_DEF_EATT_MTU_SIZE)
     tcb.mtu_for_eatt = tcb.payload_size;
   else
     tcb.mtu_for_eatt = GATT_DEF_EATT_MTU_SIZE;
 
-  LOG(INFO) << "MTU request PDU with MTU size " << +tcb.payload_size;
-
   l2cble_set_fixed_channel_tx_data_length(tcb.peer_bda, L2CAP_ATT_CID,
                                           tcb.payload_size);
 
   tGATT_SR_MSG gatt_sr_msg;
-  gatt_sr_msg.mtu = tcb.payload_size;
+  gatt_sr_msg.mtu = GATT_MAX_MTU_SIZE;
+
+  LOG(INFO) << StringPrintf("MTU %d request from remote (%s), resulted MTU %d", mtu,
+               tcb.peer_bda.ToString().c_str(), tcb.payload_size);
+
   BT_HDR* p_buf = attp_build_sr_msg(tcb, lcid, GATT_RSP_MTU, &gatt_sr_msg);
   attp_send_sr_msg(tcb, lcid, p_buf);
 
