@@ -1553,7 +1553,7 @@ void gatt_end_operation(tGATT_CLCB* p_clcb, tGATT_STATUS status, void* p_data) {
       //Add for read multi rsp
       if ((p_clcb->op_subtype == GATT_READ_MULTIPLE ||
           p_clcb->op_subtype == GATT_READ_MULTIPLE_VARIABLE)) {
-        if (status == GATT_NOT_FOUND) {
+        if ((status == GATT_NOT_FOUND) || (status == GATT_REQ_NOT_SUPPORTED)) {
           cb_data.att_value.handle = p_clcb->err_handle;
         }
         cb_data.att_value.read_sub_type = p_clcb->op_subtype;
