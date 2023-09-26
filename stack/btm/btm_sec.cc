@@ -1471,8 +1471,8 @@ static tBTM_STATUS btm_sec_send_hci_disconnect(tBTM_SEC_DEV_REC* p_dev_rec,
   uint8_t old_state = p_dev_rec->sec_state;
   tBTM_STATUS status = BTM_CMD_STARTED;
 
-  BTM_TRACE_EVENT("btm_sec_send_hci_disconnect:  handle:0x%x, reason=0x%x",
-                  conn_handle, reason);
+  BTM_TRACE_EVENT("btm_sec_send_hci_disconnect:  handle:0x%x, reason=0x%x, old_state=0x%x",
+                  conn_handle, reason, old_state);
 
   /* send HCI_Disconnect on a transport only once */
   switch (old_state) {
@@ -1490,6 +1490,14 @@ static tBTM_STATUS btm_sec_send_hci_disconnect(tBTM_SEC_DEV_REC* p_dev_rec,
 
     case BTM_SEC_STATE_DISCONNECTING_BOTH:
       return status;
+
+    case BTM_SEC_STATE_ENCRYPTING:
+      if (conn_handle == p_dev_rec->hci_handle) {
+        p_dev_rec->sec_state = BTM_SEC_STATE_DISCONNECTING;
+      } else {
+        BTM_TRACE_EVENT("BLE link disconnected during ENCRYPTING.");
+      }
+      break;
 
     default:
       p_dev_rec->sec_state = (conn_handle == p_dev_rec->hci_handle)
