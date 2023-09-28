@@ -296,6 +296,13 @@ void btif_ahim_update_src_metadata (const source_metadata_t& source_metadata) {
     LOG(INFO) << __func__ << ": Current Active Profile: " << loghex(cur_active_profile);
     if(cur_active_profile == A2DP) {
       btif_report_a2dp_src_metadata_update((source_metadata_t *)&source_metadata);
+      if (btif_check_dual_mode()) {
+        std::unique_lock<std::mutex> guard(src_metadata_wait_mutex_);
+        src_metadata_wait = false;
+        src_metadata_wait_cv.wait_for(guard, std::chrono::milliseconds(3200),
+                            []{return src_metadata_wait;});
+        LOG(INFO) << __func__ << ": A2DP Src waiting completed!!";
+      }
     } else if(cur_active_profile == AUDIO_GROUP_MGR ||
         cur_active_profile == BROADCAST) {
       LOG(INFO) << __func__ << ": Sending AIDL request to Audio Group Manager";
