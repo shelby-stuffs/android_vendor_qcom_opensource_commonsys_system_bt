@@ -522,21 +522,24 @@ void LeAudioClientInterface::Sink::Cleanup() {
   LOG(INFO) << __func__ << " sink";
   StopSession();
 
-  if (aidl::le_audio::LeAudioSinkTransport::interface_unicast_) {
-    delete aidl::le_audio::LeAudioSinkTransport::interface_unicast_;
-    aidl::le_audio::LeAudioSinkTransport::interface_unicast_ = nullptr;
-  }
-  if (aidl::le_audio::LeAudioSinkTransport::interface_broadcast_) {
-    delete aidl::le_audio::LeAudioSinkTransport::interface_broadcast_;
-    aidl::le_audio::LeAudioSinkTransport::interface_broadcast_ = nullptr;
-  }
-  if (aidl::le_audio::LeAudioSinkTransport::instance_unicast_) {
-    delete aidl::le_audio::LeAudioSinkTransport::instance_unicast_;
-    aidl::le_audio::LeAudioSinkTransport::instance_unicast_ = nullptr;
-  }
-  if (aidl::le_audio::LeAudioSinkTransport::instance_broadcast_) {
-    delete aidl::le_audio::LeAudioSinkTransport::instance_broadcast_;
-    aidl::le_audio::LeAudioSinkTransport::instance_broadcast_ = nullptr;
+  if (is_broadcaster_) {
+    if (aidl::le_audio::LeAudioSinkTransport::interface_broadcast_) {
+      delete aidl::le_audio::LeAudioSinkTransport::interface_broadcast_;
+      aidl::le_audio::LeAudioSinkTransport::interface_broadcast_ = nullptr;
+    }
+    if (aidl::le_audio::LeAudioSinkTransport::instance_broadcast_) {
+      delete aidl::le_audio::LeAudioSinkTransport::instance_broadcast_;
+      aidl::le_audio::LeAudioSinkTransport::instance_broadcast_ = nullptr;
+    }
+  } else {
+    if (aidl::le_audio::LeAudioSinkTransport::interface_unicast_) {
+      delete aidl::le_audio::LeAudioSinkTransport::interface_unicast_;
+      aidl::le_audio::LeAudioSinkTransport::interface_unicast_ = nullptr;
+    }
+    if (aidl::le_audio::LeAudioSinkTransport::instance_unicast_) {
+      delete aidl::le_audio::LeAudioSinkTransport::instance_unicast_;
+      aidl::le_audio::LeAudioSinkTransport::instance_unicast_ = nullptr;
+    }
   }
 }
 
