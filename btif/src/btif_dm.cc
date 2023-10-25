@@ -98,6 +98,7 @@
 #include "bt_common.h"
 #include "bta_closure_api.h"
 #include "bta_gatt_api.h"
+#include "bta_hearing_aid_api.h"
 #include "btif_api.h"
 #include "btif_bqr.h"
 #include "btif_config.h"
@@ -2415,6 +2416,11 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
       }
       if (p_data->link_down.link_type == BT_TRANSPORT_LE) {
          btif_vendor_le_acl_disconnected(bd_addr);
+         if (HearingAid::IsHearingAidRunning()) {
+           BTIF_TRACE_DEBUG("Notify ACL disconnected to hearing Aid");
+           do_in_bta_thread(FROM_HERE, base::Bind(&HearingAid::OnAclDisconnected,
+                                           base::Unretained(HearingAid::Get()), bd_addr));
+         }
       }
 
       BTIF_TRACE_DEBUG(
