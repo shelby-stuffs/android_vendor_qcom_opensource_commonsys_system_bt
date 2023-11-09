@@ -678,9 +678,13 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
 
     int32_t latency = 0;
     if (direction == RX_ONLY_CONFIG) {
-      latency = unicastSourceClientInterface->GetRemoteDelay();
+      if (unicastSourceClientInterface != nullptr) {
+        latency = unicastSourceClientInterface->GetRemoteDelay();
+      }
     } else {
-      latency = unicastSinkClientInterface->GetRemoteDelay();
+      if (unicastSinkClientInterface != nullptr) {
+        latency = unicastSinkClientInterface->GetRemoteDelay();
+      }
     }
     // TODO to fill the right PD
     LeAudioConfiguration ucast_config = {
@@ -742,9 +746,13 @@ LeAudioConfiguration fetch_offload_audio_config(int profile, int direction) {
 
     int32_t latency = 0;
     if (direction == RX_ONLY_CONFIG) {
-      latency = unicastSourceClientInterface->GetRemoteDelay();
+      if (unicastSourceClientInterface != nullptr) {
+        latency = unicastSourceClientInterface->GetRemoteDelay();
+      }
     } else {
-      latency = unicastSinkClientInterface->GetRemoteDelay();
+      if (unicastSinkClientInterface != nullptr) {
+        latency = unicastSinkClientInterface->GetRemoteDelay();
+      }
     }
     // TODO to fill the right PD
     LeAudioConfiguration ucast_config = {
