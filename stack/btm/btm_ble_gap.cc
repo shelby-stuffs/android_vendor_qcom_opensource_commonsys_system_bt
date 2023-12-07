@@ -3357,6 +3357,9 @@ static void btm_ble_process_adv_pkt_cont(
       update = true;
     } else if (BTM_BLE_IS_OBS_ACTIVE(btm_cb.ble_ctr_cb.scan_activity)) {
       update = false;
+    } if (p_i == NULL) {
+      /* updating the entry in INQ database */
+      update = true;
     } else {
       VLOG(1)<< __func__ << " skipped BDA " << bda;
       /* if yes, skip it */
