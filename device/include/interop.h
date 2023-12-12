@@ -325,6 +325,10 @@ typedef enum {
   // and CS MT call is received
   INTEROP_HFP_SEND_OK_FOR_CLCC_AFTER_VOIP_CALL_END,
 
+  // Some remotes only work for incoming BR SMP pair procedure and don't response SMP req,
+  // avoid smp statemachine blocks in pending remots' response.
+  INTEROP_DISABLE_OUTGOING_BR_SMP,
+
   END_OF_INTEROP_LIST
 } interop_feature_t;
 
