@@ -876,7 +876,7 @@ void bta_gattc_cfg_mtu(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
       return;
     case MTU_EXCHANGE_IN_PROGRESS:
       VLOG(1) << __func__ << " Enqueue MTU Request  - waiting for response on p_clcb: " << p_clcb;
-      p_clcb->p_q_cmd_queue.push_back(p_data);
+      bta_gattc_enqueue(p_clcb, p_data);
       return;
 
     case MTU_EXCHANGE_NOT_DONE_YET:
