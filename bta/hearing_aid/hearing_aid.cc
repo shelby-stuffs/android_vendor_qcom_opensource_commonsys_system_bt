@@ -1512,6 +1512,7 @@ class HearingAidImpl : public HearingAid {
         {CONTROL_POINT_OP_STATE_CHANGE, STATE_CHANGE_OTHER_SIDE_DISCONNECTED});
     send_state_change_to_other_side(hearingDevice, inform_disconn_state);
 
+    hearingDevice->dev_disconnected_by_user = true;
     DoDisconnectCleanUp(hearingDevice);
 
     if (connected)
@@ -1543,7 +1544,12 @@ class HearingAidImpl : public HearingAid {
                    false);
 
     callbacks->OnConnectionState(ConnectionState::DISCONNECTED, remote_bda);
-    hearingDevices.Remove(remote_bda);
+
+    if (hearingDevice->dev_disconnected_by_user) {
+      LOG(INFO) << __func__ << " Device is disconnected by user, removing it from list" << hearingDevice->address;
+      hearingDevice->dev_disconnected_by_user = false;
+      hearingDevices.Remove(remote_bda);
+    }
   }
 
   void DoDisconnectCleanUp(HearingDevice* hearingDevice) {
