@@ -350,7 +350,11 @@ class HearingAidImpl : public HearingAid {
         VLOG(1) << __func__ << " Link Level Disconnection is progress, delay BG connection "
                 << dev_info.address;
         HearingDevice* hearingDevice = hearingDevices.FindByAddress(dev_info.address);
-        hearingDevice->delay_background_connect = true;
+        if (hearingDevice) {
+          hearingDevice->delay_background_connect = true;
+        } else {
+          VLOG(1) << __func__ << dev_info.address <<" hearingDevice is not in hearingDevices list";
+        }
       } else {
         VLOG(1) << __func__ << " Do background connecting "
                 << dev_info.address;
