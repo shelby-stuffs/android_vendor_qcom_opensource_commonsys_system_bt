@@ -51,6 +51,8 @@ using base::Closure;
 using bluetooth::Uuid;
 using bluetooth::hearing_aid::ConnectionState;
 
+extern bool BTM_GetLeDisconnectStatus(const RawAddress& address);
+
 // The MIN_CE_LEN parameter for Connection Parameters based on the current
 // Connection Interval
 constexpr uint16_t MIN_CE_LEN_10MS_CI = 0x0006;
@@ -344,13 +346,22 @@ class HearingAidImpl : public HearingAid {
     if (is_acceptlisted) {
       hearingDevices.Add(dev_info);
 
-      // TODO: we should increase the scanning window for few seconds, to get
-      // faster initial connection, same after hearing aid disconnects, i.e.
-      // BTM_BleSetConnScanParams(2048, 1024);
+      if (BTM_GetLeDisconnectStatus(dev_info.address)) {
+        VLOG(1) << __func__ << " Link Level Disconnection is progress, delay BG connection "
+                << dev_info.address;
+        HearingDevice* hearingDevice = hearingDevices.FindByAddress(dev_info.address);
+        hearingDevice->delay_background_connect = true;
+      } else {
+        VLOG(1) << __func__ << " Do background connecting "
+                << dev_info.address;
+        // TODO: we should increase the scanning window for few seconds, to get
+        // faster initial connection, same after hearing aid disconnects, i.e.
+        // BTM_BleSetConnScanParams(2048, 1024);
 
-      /* add device into BG connection to accept remote initiated connection */
-      BTA_GATTC_Open(gatt_if, dev_info.address, false, GATT_TRANSPORT_LE,
-                     false);
+        /* add device into BG connection to accept remote initiated connection */
+        BTA_GATTC_Open(gatt_if, dev_info.address, false, GATT_TRANSPORT_LE,
+                       false);
+      }
     }
 
     callbacks->OnDeviceAvailable(dev_info.capabilities, dev_info.hi_sync_id,
@@ -1576,6 +1587,22 @@ class HearingAidImpl : public HearingAid {
                                         volume_value, GATT_WRITE_NO_RSP,
                                         nullptr, nullptr);
     }
+  }
+
+  void OnAclDisconnected(const RawAddress& address) override {
+     VLOG(1) << __func__ << " address: " << address;
+     HearingDevice* hearingDevice = hearingDevices.FindByAddress(address);
+     if (!hearingDevice) {
+       LOG(INFO) << "skip unknown device ACL disconnected " << address;
+       return;
+     }
+
+     VLOG(1) << __func__ << " delay_background_connect: "
+             << hearingDevice->delay_background_connect;
+     if (hearingDevice->delay_background_connect) {
+       BTA_GATTC_Open(gatt_if, address, false, GATT_TRANSPORT_LE, false);
+       hearingDevice->delay_background_connect = false;
+     }
   }
 
   void CleanUp() {
