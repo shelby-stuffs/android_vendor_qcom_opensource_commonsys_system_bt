@@ -649,7 +649,7 @@ void bta_gattc_conn(tBTA_GATTC_CLCB* p_clcb, tBTA_GATTC_DATA* p_data) {
                               ? bta_gattc_cache_load(p_clcb->p_srcb->server_bda)
                               : gatt::Database();
       auto robust_caching_support = GetRobustCachingSupport(p_clcb, db);
-      LOG_INFO("Connected to %s, robust caching support is %d",
+      LOG_INFO(LOG_TAG, "Connected to %s, robust caching support is %d",
                p_clcb->bda.ToRedactedStringForLogging().c_str(),
                robust_caching_support);
       if (db.IsEmpty() ||
@@ -977,7 +977,6 @@ void bta_gattc_start_discover(tBTA_GATTC_CLCB* p_clcb,
       /* read db hash if db hash characteristic exists */
       if (bta_gattc_is_robust_caching_enabled() &&
           p_clcb->p_srcb->srvc_hdl_db_hash &&
-          (lmp_version >= HCI_PROTO_VERSION_5_1) &&
           bta_gattc_read_db_hash(p_clcb, is_svc_chg)) {
         LOG(INFO) << __func__
                   << ": pending service discovery, read db hash first";

@@ -145,12 +145,12 @@ const Service* bta_gattc_find_matching_service(
 /// Whether the peer device uses robust caching
 RobustCachingSupport GetRobustCachingSupport(const tBTA_GATTC_CLCB* p_clcb,
                                              const gatt::Database& db) {
-  LOG_DEBUG("GetRobustCachingSupport %s",
+  LOG_DEBUG(LOG_TAG,"GetRobustCachingSupport %s",
             p_clcb->bda.ToRedactedStringForLogging().c_str());
 
   // If the feature is disabled, then we never support it
   if (!bta_gattc_is_robust_caching_enabled()) {
-    LOG_DEBUG("robust caching is disabled, so UNSUPPORTED");
+    LOG_DEBUG(LOG_TAG,"robust caching is disabled, so UNSUPPORTED");
     return RobustCachingSupport::UNSUPPORTED;
   }
 
@@ -165,7 +165,7 @@ RobustCachingSupport GetRobustCachingSupport(const tBTA_GATTC_CLCB* p_clcb,
       for (const auto& characteristic : service.characteristics) {
         if (characteristic.uuid.As16Bit() == GATT_UUID_DATABASE_HASH) {
           // the hash was found, so we should read it
-          LOG_DEBUG("database hash characteristic found, so SUPPORTED");
+          LOG_DEBUG(LOG_TAG,"database hash characteristic found, so SUPPORTED");
           return RobustCachingSupport::SUPPORTED;
         }
       }
@@ -175,7 +175,7 @@ RobustCachingSupport GetRobustCachingSupport(const tBTA_GATTC_CLCB* p_clcb,
     // searching for it. Even if the hash was previously not present but is now,
     // we will still get the service changed indication, so there's no need to
     // speculatively check for the hash every time.
-    LOG_DEBUG("database hash characteristic not found, so UNSUPPORTED");
+    LOG_DEBUG(LOG_TAG,"database hash characteristic not found, so UNSUPPORTED");
     return RobustCachingSupport::UNSUPPORTED;
   }
 
@@ -186,12 +186,13 @@ RobustCachingSupport GetRobustCachingSupport(const tBTA_GATTC_CLCB* p_clcb,
   // support GATT Caching.
   uint8_t lmp_version = 0;
   if (!BTM_ReadRemoteVersion(p_clcb->bda, &lmp_version, nullptr, nullptr)) {
-    LOG_WARN("Could not read remote version for %s",
-             ADDRESS_TO_LOGGABLE_CSTR(p_clcb->bda));
+    LOG_WARN(LOG_TAG,"Could not read remote version for %s",
+             p_clcb->bda.ToRedactedStringForLogging().c_str());
   }
 
-  if (lmp_version < 0x0a) {
+  if (lmp_version < HCI_PROTO_VERSION_5_1) {
     LOG_WARN(
+        LOG_TAG,
         " Device LMP version 0x%02x < Bluetooth 5.1. Ignore database cache "
         "read.",
         lmp_version);
@@ -204,6 +205,7 @@ RobustCachingSupport GetRobustCachingSupport(const tBTA_GATTC_CLCB* p_clcb,
   if (lmp_version < 0x0c &&
       interop_match_addr(INTEROP_DISABLE_ROBUST_CACHING, &p_clcb->bda)) {
     LOG_WARN(
+        LOG_TAG,
         "Device LMP version 0x%02x <= Bluetooth 5.2 and MAC addr on "
         "interop list, skipping robust caching",
         lmp_version);
@@ -212,7 +214,7 @@ RobustCachingSupport GetRobustCachingSupport(const tBTA_GATTC_CLCB* p_clcb,
 
   // If we have no cached database and no interop considerations,
   // it is unknown whether or not robust caching is supported
-  LOG_DEBUG("database hash support is UNKNOWN");
+  LOG_DEBUG(LOG_TAG,"database hash support is UNKNOWN");
   return RobustCachingSupport::UNKNOWN;
 }
 
@@ -326,6 +328,7 @@ static void bta_gattc_explore_srvc_finished(uint16_t conn_id,
     // If the device is trusted, link the addr file to hash file
     if (success && btm_sec_is_a_bonded_dev(p_srvc_cb->server_bda)) {
       LOG_DEBUG(
+          LOG_TAG,
           "Linking db hash to address %s",
           p_clcb->p_srcb->server_bda.ToRedactedStringForLogging().c_str());
       bta_gattc_cache_link(p_clcb->p_srcb->server_bda, hash);
