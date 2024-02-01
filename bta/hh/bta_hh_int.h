@@ -390,6 +390,7 @@ extern void bta_hh_le_update_scpp(tBTA_HH_DEV_CB *p_cb, tBTA_HH_DATA *p_buf);
 extern void bta_hh_le_notify_enc_cmpl(tBTA_HH_DEV_CB* p_cb,
                                       tBTA_HH_DATA* p_data);
 extern void bta_hh_ci_load_rpt(tBTA_HH_DEV_CB* p_cb, tBTA_HH_DATA* p_buf);
+extern bool bta_hh_is_hogp_service_present(const RawAddress& remote_bda);
 
 #if (BTA_HH_DEBUG == TRUE)
 extern void bta_hh_trace_dev_db(void);
