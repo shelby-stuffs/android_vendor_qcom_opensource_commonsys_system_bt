@@ -1808,6 +1808,7 @@ void btif_a2dp_source_command_ack(tA2DP_CTRL_CMD cmd, tA2DP_CTRL_ACK status) {
 void btif_a2dp_source_process_request(tA2DP_CTRL_CMD cmd) {
   tA2DP_CTRL_ACK status = A2DP_CTRL_ACK_FAILURE;
   bool start_audio = false;
+  BTIF_TRACE_IMP("%s: cmd: %u", __func__, cmd);
   // update the pending command
 #if AHIM_ENABLED
   btif_ahim_update_pending_command(cmd, A2DP);
@@ -1816,8 +1817,7 @@ void btif_a2dp_source_process_request(tA2DP_CTRL_CMD cmd) {
 #endif
 
   switch (cmd) {
-    case A2DP_CTRL_CMD_START:
-    {
+    case A2DP_CTRL_CMD_START: {
       /*
        * Don't send START request to stack while we are in a call.
        * Some headsets such as "Sony MW600", don't allow AVDTP START
@@ -1839,7 +1839,8 @@ void btif_a2dp_source_process_request(tA2DP_CTRL_CMD cmd) {
       }
 #ifdef ADV_AUDIO_FEATURE
       if (btif_ahim_is_aosp_aidl_hal_enabled() &&
-          btif_acm_check_in_call_tracker_timer_exist()) {
+          (btif_acm_check_in_call_tracker_timer_exist() ||
+           (!btif_acm_get_is_inCall() && btif_acm_is_call_active()))) {
         stop_stream_acm_initiator_now();
         status = A2DP_CTRL_ACK_INCALL_FAILURE;
         break;
