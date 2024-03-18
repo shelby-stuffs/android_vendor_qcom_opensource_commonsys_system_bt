@@ -3010,7 +3010,7 @@ static bool btif_av_state_started_handler(btif_sm_event_t event, void* p_data,
       // request avdtp to close
       if (property_get("persist.bluetooth.enable_dual_mode_audio", dual_mode_enable, "false") &&
           !strcmp(dual_mode_enable, "true")) {
-        int streaming_index =  btif_av_get_latest_stream_device_idx();
+        int streaming_index =  btif_av_get_latest_device_idx_to_start();
         if (streaming_index == index) {
           BTIF_TRACE_DEBUG("%s : Disconnection came for Active device", __func__);
           if (!btif_a2dp_source_end_session(btif_av_get_addr_by_index(index))) {
