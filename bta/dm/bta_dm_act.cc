@@ -1628,7 +1628,14 @@ void bta_dm_discover(tBTA_DM_MSG* p_data) {
   bta_dm_search_cb.p_btm_inq_info = BTM_InqDbRead(p_data->discover.bd_addr);
   bta_dm_search_cb.transport = p_data->discover.transport;
 
-  bta_dm_search_cb.name_discover_done = false;
+  char* p_name = BTM_SecReadDevName(p_data->discover.bd_addr);
+  if ((p_name != NULL) && (p_data->discover.transport == BT_TRANSPORT_BR_EDR)) {
+    strlcpy((char*)bta_dm_search_cb.peer_name, p_name, BD_NAME_LEN + 1);
+    bta_dm_search_cb.name_discover_done = true;
+  } else {
+    bta_dm_search_cb.name_discover_done = false;
+  }
+
   bta_dm_search_cb.uuid = p_data->discover.uuid;
   bta_dm_discover_device(p_data->discover.bd_addr);
 }
