@@ -6067,6 +6067,29 @@ static void bta_dm_le_gattc_callback(tBTA_GATTC_EVT event, tBTA_GATTC* p_data) {
   }
 }
 
+bool bta_dm_is_hogp_supported(RawAddress bd_addr) {
+  Uuid remote_uuids[BT_MAX_NUM_UUIDS];
+  bt_property_t prop;
+
+  prop.type = BT_PROPERTY_UUIDS;
+  prop.val = &remote_uuids[0];
+  prop.len = sizeof(remote_uuids);
+  btif_storage_get_remote_device_property(&bd_addr, &prop);
+
+  int i, valid_uuids = 0;
+  for (i = 0; i < BT_MAX_NUM_UUIDS; i++) {
+    if (remote_uuids[i].As16Bit() == UUID_SERVCLASS_LE_HID) {
+      APPL_TRACE_DEBUG("%s: HOGP Service found with device %s",
+                       __func__, bd_addr.ToString().c_str());
+      return true;
+    }
+  }
+
+  APPL_TRACE_DEBUG("%s: HOGP Service not found with device %s",
+                   __func__, bd_addr.ToString().c_str());
+  return false;
+}
+
 void bta_dm_gatt_le_services(RawAddress bd_addr) {
   APPL_TRACE_WARNING(" bta_dm_gatt_le_services");
 
