@@ -3370,6 +3370,16 @@ static uint8_t bta_dm_sp_cback(tBTM_SP_EVT event, tBTM_SP_EVT_DATA* p_data) {
             return BTM_CMD_STARTED;
           APPL_TRACE_WARNING(
               " bta_dm_sp_cback() -> Failed to start Remote Name Request  ");
+          sec_event.key_notif.bd_addr = p_data->cfm_req.bd_addr;
+          BTA_COPY_DEVICE_CLASS(sec_event.key_notif.dev_class,
+                                p_data->cfm_req.dev_class);
+          BD_NAME bd_name;
+          if (BTM_GetRemoteDeviceName(p_data->cfm_req.bd_addr, bd_name)){
+            APPL_TRACE_WARNING(
+               " bta_dm_sp_cback() -> Failed to start Remote Name Request, use cached name  ");
+            strlcpy((char*)sec_event.key_notif.bd_name,
+              (char*)bd_name, BD_NAME_LEN + 1);
+          }
         } else {
           /* Due to the switch case falling through below to
              BTM_SP_KEY_NOTIF_EVT,
@@ -3400,6 +3410,16 @@ static uint8_t bta_dm_sp_cback(tBTM_SP_EVT event, tBTM_SP_EVT_DATA* p_data) {
             return BTM_CMD_STARTED;
           APPL_TRACE_WARNING(
               " bta_dm_sp_cback() -> Failed to start Remote Name Request  ");
+          sec_event.key_notif.bd_addr = p_data->key_notif.bd_addr;
+          BTA_COPY_DEVICE_CLASS(sec_event.key_notif.dev_class,
+                                p_data->key_notif.dev_class);
+          BD_NAME bd_name;
+          if (BTM_GetRemoteDeviceName(p_data->key_notif.bd_addr, bd_name)){
+            APPL_TRACE_WARNING(
+               " bta_dm_sp_cback() -> Failed to start Remote Name Request, use cached name  ");
+               strlcpy((char*)sec_event.key_notif.bd_name,
+                 (char*)bd_name, BD_NAME_LEN + 1);
+          }
         } else {
           sec_event.key_notif.bd_addr = p_data->key_notif.bd_addr;
           BTA_COPY_DEVICE_CLASS(sec_event.key_notif.dev_class,
