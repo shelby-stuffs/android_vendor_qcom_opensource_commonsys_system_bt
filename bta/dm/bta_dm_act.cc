@@ -2256,7 +2256,10 @@ void bta_dm_sdp_result(tBTA_DM_MSG* p_data) {
 
     p_msg = (tBTA_DM_MSG*)osi_malloc(sizeof(tBTA_DM_MSG));
     p_msg->hdr.event = BTA_DM_DISCOVERY_RESULT_EVT;
-    p_msg->disc_result.result.disc_res.result = BTA_FAILURE;
+    if (p_data->sdp_event.sdp_result == SDP_CONN_BUSY)
+        p_msg->disc_result.result.disc_res.result = BTA_BUSY;
+    else
+        p_msg->disc_result.result.disc_res.result = BTA_FAILURE;
     p_msg->disc_result.result.disc_res.services =
         bta_dm_search_cb.services_found;
     p_msg->disc_result.result.disc_res.bd_addr = bta_dm_search_cb.peer_bdaddr;
