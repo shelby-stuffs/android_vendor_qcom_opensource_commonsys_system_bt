@@ -68,7 +68,7 @@ static constexpr uint32_t kQualityEventMaskApproachLsto = 0x00000002;
 static constexpr uint32_t kQualityEventMaskA2dpAudioChoppy = 0x00000004;
 static constexpr uint32_t kQualityEventMaskScoVoiceChoppy = 0x00000008;
 static constexpr uint32_t kQualityEventMaskRootInflammation = 0x00000010;
-static constexpr uint32_t kQualityEventMaskConnectFail = 0x80000000;
+static constexpr uint32_t kQualityEventMaskConnectFail = 0x1 << 7;;
 static constexpr uint32_t kQualityEventMaskDebugInfo = 0x00040000;
 static constexpr uint32_t kQualityEventMaskVendorSpecific = 0x00008000;
 static constexpr uint32_t kQualityEventMaskAll =
@@ -76,6 +76,7 @@ static constexpr uint32_t kQualityEventMaskAll =
     kQualityEventMaskA2dpAudioChoppy | kQualityEventMaskScoVoiceChoppy |
     kQualityEventMaskRootInflammation | kQualityEventMaskConnectFail |
     kQualityEventMaskDebugInfo;
+static constexpr uint32_t kQualityEventMaskVsConnectFail = 0x80000000;
 static constexpr uint32_t kBqr5QualityEventMaskMonitorMode = 0x00000001;
 static constexpr uint32_t kBqr5QualityEventMaskApproachLsto = 0x00000002;
 static constexpr uint32_t kBqr5QualityEventMaskA2dpAudioChoppy = 0x00000004;
@@ -89,7 +90,7 @@ static constexpr uint32_t kBqr5QualityEventMaskAll =
     kBqr5QualityEventMaskA2dpAudioChoppy | kBqr5QualityEventMaskScoVoiceChoppy |
     kBqr5QualityEventMaskRootInflammation | kBqr5QualityEventMaskConnectFail |
     kBqr5QualityEventMaskDebugInfo | kQualityEventMaskVendorSpecific ;
-	
+
 static constexpr uint32_t kVendorQualityEventMaskDiscMonitorMode = 0x00000001;
 static constexpr uint32_t kVendorQualityEventMaskMiscMonitorMode = 0x00000002;
 static constexpr uint32_t kVendorQualityEventMaskPowerLevelChange = 0x00000004;

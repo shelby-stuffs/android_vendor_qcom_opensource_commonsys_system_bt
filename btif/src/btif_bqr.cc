@@ -46,9 +46,9 @@ static uint16_t vendor_cap_supported_version;
 
 static uint32_t GetVsQualityEventMask(uint32_t event_mask) {
   if (vendor_cap_supported_version < kBqrConnectFailVersion &&
-      (event_mask & kBqr5QualityEventMaskConnectFail)) {
-    event_mask = event_mask & (~kBqr5QualityEventMaskConnectFail);
-    event_mask = event_mask | kQualityEventMaskConnectFail;
+      (event_mask & kQualityEventMaskConnectFail)) {
+    event_mask = event_mask & (~kQualityEventMaskConnectFail);
+    event_mask = event_mask | kQualityEventMaskVsConnectFail;
     LOG(INFO) << __func__
               << ": event_mask: " << loghex(event_mask);
   }
@@ -397,7 +397,8 @@ void EnableBtQualityReport(bool is_enable) {
     bqr_config.minimum_report_interval_ms =
         static_cast<uint16_t>(atoi(bqr_prop_interval_ms));
 
-    if (vendor_cap_supported_version < kBqrConnectFailVersion) {
+    if (vendor_cap_supported_version < kBqrConnectFailVersion &&
+                !(bqr_config.is_qc_bqr5_supported)) {
       bqr_config.quality_event_mask = GetVsQualityEventMask(bqr_config.quality_event_mask);
     }
   } else {
@@ -458,8 +459,10 @@ void BqrVscCompleteCallback(tBTM_VSC_CMPL* p_vsc_cmpl_params) {
 
 void ConfigureBqr(const BqrConfiguration& bqr_config) {
   if(!(bqr_config.is_qc_bqr5_supported)) {
+    const uint32_t vsQualityEventMaskAll = GetVsQualityEventMask(kQualityEventMaskAll);
+
     if (bqr_config.report_action > REPORT_ACTION_CLEAR ||
-        bqr_config.quality_event_mask > kQualityEventMaskAll ||
+        bqr_config.quality_event_mask > vsQualityEventMaskAll ||
         bqr_config.minimum_report_interval_ms > kMinReportIntervalMaxMs) {
       LOG(FATAL) << __func__ << ": Invalid Parameter"
                  << ", Action: " << (int)bqr_config.report_action
@@ -467,27 +470,17 @@ void ConfigureBqr(const BqrConfiguration& bqr_config) {
                  << ", Interval: " << bqr_config.minimum_report_interval_ms;
       return;
     }
+
   } else {
     if (bqr_config.report_action > REPORT_ACTION_CLEAR ||
-        bqr_config.quality_event_mask > kBqr5QualityEventMaskAll ||
-        bqr_config.minimum_report_interval_ms > kMinReportIntervalMaxMs) {
-      LOG(FATAL) << __func__ << ": Invalid Parameter"
-                 << ", Action: " << (int)bqr_config.report_action
-                 << ", Mask: " << loghex(bqr_config.quality_event_mask)
-                 << ", Interval: " << bqr_config.minimum_report_interval_ms;
-      return;
-    }
-  }
-  const uint32_t vsQualityEventMaskAll = GetVsQualityEventMask(kQualityEventMaskAll);
-
-  if (bqr_config.report_action > REPORT_ACTION_CLEAR ||
-      bqr_config.quality_event_mask > vsQualityEventMaskAll ||
+      bqr_config.quality_event_mask > kBqr5QualityEventMaskAll ||
       bqr_config.minimum_report_interval_ms > kMinReportIntervalMaxMs) {
-    LOG(FATAL) << __func__ << ": Invalid Parameter"
+      LOG(FATAL) << __func__ << ": Invalid Parameter"
                << ", Action: " << (int)bqr_config.report_action
                << ", Mask: " << loghex(bqr_config.quality_event_mask)
                << ", Interval: " << bqr_config.minimum_report_interval_ms;
-    return;
+      return;
+    }
   }
 
   LOG(INFO) << __func__ << ": Action: " << bqr_config.report_action
