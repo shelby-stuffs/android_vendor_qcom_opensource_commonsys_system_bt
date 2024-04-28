@@ -61,6 +61,7 @@ RawAddress generate_rpa_from_irk_and_rand(const Octet16& irk,
  * generated */
 void btm_gen_resolve_paddr_low(const RawAddress& address) {
   tBTM_LE_RANDOM_CB* p_cb = &btm_cb.ble_ctr_cb.addr_mgnt_cb;
+  tBTM_BLE_CB* p_ble_cb = &btm_cb.ble_ctr_cb;
 
   BTM_TRACE_EVENT("btm_gen_resolve_paddr_low");
 
@@ -77,8 +78,10 @@ void btm_gen_resolve_paddr_low(const RawAddress& address) {
 #if (BTM_BLE_CONFORMANCE_TESTING == TRUE)
     interval_ms = btm_cb.ble_ctr_cb.rpa_tout * 1000;
 #endif
-    alarm_set_on_mloop(p_cb->refresh_raddr_timer, interval_ms,
+    if(BTM_BLE_IS_SCAN_ACTIVE(p_ble_cb->scan_activity)) {
+      alarm_set_on_mloop(p_cb->refresh_raddr_timer, interval_ms,
                      btm_ble_refresh_raddr_timer_timeout, NULL);
+    }
   }
   else {
     p_cb->own_addr_type = BLE_ADDR_RANDOM_ID;
